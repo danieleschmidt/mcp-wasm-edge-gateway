@@ -2,9 +2,13 @@
 
 use crate::TelemetryCollector;
 use async_trait::async_trait;
-use mcp_common::{Result, Error, ComponentHealth, Config, AggregatedMetrics, HealthLevel, SystemMetrics, RequestAggregates, QueueMetrics, SecurityMetrics};
-use std::sync::Arc;
+use mcp_common::metrics::{
+    AggregatedMetrics, ComponentHealth, HealthLevel, QueueMetrics, RequestAggregates,
+    SecurityMetrics, SystemMetrics,
+};
+use mcp_common::{Config, Error, Result};
 use std::collections::HashMap;
+use std::sync::Arc;
 use tokio::sync::RwLock;
 use tracing::{debug, info};
 use uuid::Uuid;
@@ -37,32 +41,32 @@ impl StandardTelemetryCollector {
 impl TelemetryCollector for StandardTelemetryCollector {
     async fn record_request_success(&self, request_id: Uuid, _response: &mcp_common::MCPResponse) {
         debug!("Recording successful request: {}", request_id);
-        
+
         let mut metrics = self.metrics.write().await;
         metrics.total_requests += 1;
         metrics.successful_requests += 1;
         metrics.total_latency_ms += 100; // Mock latency
         metrics.request_count += 1;
     }
-    
+
     async fn record_request_error(&self, request_id: Uuid, error: &Error) {
         debug!("Recording failed request: {} - {}", request_id, error);
-        
+
         let mut metrics = self.metrics.write().await;
         metrics.total_requests += 1;
         metrics.failed_requests += 1;
         metrics.request_count += 1;
     }
-    
+
     async fn get_aggregated_metrics(&self) -> Result<AggregatedMetrics> {
         let metrics = self.metrics.read().await;
-        
+
         let avg_latency = if metrics.successful_requests > 0 {
             metrics.total_latency_ms as f32 / metrics.successful_requests as f32
         } else {
             0.0
         };
-        
+
         Ok(AggregatedMetrics {
             timestamp: chrono::Utc::now(),
             time_window_ms: 60000, // 1 minute window
@@ -111,20 +115,21 @@ impl TelemetryCollector for StandardTelemetryCollector {
             custom: HashMap::new(),
         })
     }
-    
+
     async fn health_check(&self) -> Result<ComponentHealth> {
         let mut health_metrics = HashMap::new();
         let metrics = self.metrics.read().await;
-        
+
         health_metrics.insert("total_requests".to_string(), metrics.total_requests as f32);
-        health_metrics.insert("success_rate".to_string(), 
+        health_metrics.insert(
+            "success_rate".to_string(),
             if metrics.total_requests > 0 {
                 metrics.successful_requests as f32 / metrics.total_requests as f32
             } else {
                 1.0
-            }
+            },
         );
-        
+
         Ok(ComponentHealth {
             status: HealthLevel::Healthy,
             message: "Telemetry collector is operational".to_string(),
@@ -132,7 +137,7 @@ impl TelemetryCollector for StandardTelemetryCollector {
             metrics: health_metrics,
         })
     }
-    
+
     async fn shutdown(&self) -> Result<()> {
         info!("Shutting down telemetry collector");
         Ok(())

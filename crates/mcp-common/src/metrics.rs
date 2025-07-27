@@ -1,8 +1,8 @@
 //! Metrics and monitoring utilities
 
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use chrono::{DateTime, Utc};
 
 /// System metrics for monitoring
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -154,11 +154,15 @@ impl HealthStatus {
             return;
         }
 
-        let critical_count = self.components.values()
+        let critical_count = self
+            .components
+            .values()
             .filter(|c| c.status == HealthLevel::Critical)
             .count();
-        
-        let warning_count = self.components.values()
+
+        let warning_count = self
+            .components
+            .values()
             .filter(|c| c.status == HealthLevel::Warning)
             .count();
 

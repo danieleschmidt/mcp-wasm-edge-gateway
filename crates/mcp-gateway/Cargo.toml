@@ -52,4 +52,3 @@ web-sys = { workspace = true, optional = true }
 default = ["native"]
 native = ["tokio/rt-multi-thread", "tokio/net", "tokio/fs"]
 wasm = ["wasm-bindgen", "wasm-bindgen-futures", "js-sys", "web-sys"]
-tls = ["tower-http/tls"]

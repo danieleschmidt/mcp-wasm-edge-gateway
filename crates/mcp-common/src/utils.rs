@@ -1,8 +1,8 @@
 //! Utility functions and helpers
 
+use chrono::{DateTime, Utc};
 use std::time::{SystemTime, UNIX_EPOCH};
 use uuid::Uuid;
-use chrono::{DateTime, Utc};
 
 /// Generate a new request ID
 pub fn generate_request_id() -> Uuid {
@@ -27,12 +27,12 @@ pub fn format_bytes(bytes: u64) -> String {
     const UNITS: &[&str] = &["B", "KB", "MB", "GB", "TB"];
     let mut size = bytes as f64;
     let mut unit_index = 0;
-    
+
     while size >= 1024.0 && unit_index < UNITS.len() - 1 {
         size /= 1024.0;
         unit_index += 1;
     }
-    
+
     if unit_index == 0 {
         format!("{} {}", bytes, UNITS[unit_index])
     } else {
@@ -41,8 +41,13 @@ pub fn format_bytes(bytes: u64) -> String {
 }
 
 /// Calculate exponential backoff delay
-pub fn exponential_backoff(attempt: u32, initial_delay_ms: u64, max_delay_ms: u64, multiplier: f32) -> u64 {
-    let delay = initial_delay_ms as f64 * multiplier.powi(attempt as i32);
+pub fn exponential_backoff(
+    attempt: u32,
+    initial_delay_ms: u64,
+    max_delay_ms: u64,
+    multiplier: f32,
+) -> u64 {
+    let delay = initial_delay_ms as f64 * (multiplier as f64).powi(attempt as i32);
     (delay as u64).min(max_delay_ms)
 }
 
@@ -50,7 +55,7 @@ pub fn exponential_backoff(attempt: u32, initial_delay_ms: u64, max_delay_ms: u6
 pub fn simple_hash(s: &str) -> u64 {
     use std::collections::hash_map::DefaultHasher;
     use std::hash::{Hash, Hasher};
-    
+
     let mut hasher = DefaultHasher::new();
     s.hash(&mut hasher);
     hasher.finish()
@@ -58,16 +63,20 @@ pub fn simple_hash(s: &str) -> u64 {
 
 /// Validate model ID format
 pub fn validate_model_id(model_id: &str) -> bool {
-    !model_id.is_empty() 
+    !model_id.is_empty()
         && model_id.len() <= 256
-        && model_id.chars().all(|c| c.is_alphanumeric() || c == '-' || c == '_' || c == '.')
+        && model_id
+            .chars()
+            .all(|c| c.is_alphanumeric() || c == '-' || c == '_' || c == '.')
 }
 
 /// Validate device ID format
 pub fn validate_device_id(device_id: &str) -> bool {
     !device_id.is_empty()
         && device_id.len() <= 128
-        && device_id.chars().all(|c| c.is_alphanumeric() || c == '-' || c == '_')
+        && device_id
+            .chars()
+            .all(|c| c.is_alphanumeric() || c == '-' || c == '_')
 }
 
 /// Calculate memory usage percentage
@@ -84,7 +93,7 @@ pub fn calculate_percentile(mut latencies: Vec<u64>, percentile: f32) -> u64 {
     if latencies.is_empty() {
         return 0;
     }
-    
+
     latencies.sort_unstable();
     let index = ((latencies.len() as f32 * percentile / 100.0) - 1.0).max(0.0) as usize;
     latencies[index.min(latencies.len() - 1)]
@@ -119,10 +128,10 @@ impl RateLimiter {
             last_refill: SystemTime::now(),
         }
     }
-    
+
     pub fn try_acquire(&mut self) -> bool {
         self.refill_tokens();
-        
+
         if self.tokens > 0 {
             self.tokens -= 1;
             true
@@ -130,7 +139,7 @@ impl RateLimiter {
             false
         }
     }
-    
+
     fn refill_tokens(&mut self) {
         let now = SystemTime::now();
         if let Ok(elapsed) = now.duration_since(self.last_refill) {
@@ -167,24 +176,22 @@ impl CircuitBreaker {
             state: CircuitState::Closed,
         }
     }
-    
+
     pub fn call<F, T, E>(&mut self, operation: F) -> Result<T, E>
     where
         F: FnOnce() -> Result<T, E>,
     {
         match self.state {
-            CircuitState::Closed => {
-                match operation() {
-                    Ok(result) => {
-                        self.on_success();
-                        Ok(result)
-                    }
-                    Err(error) => {
-                        self.on_failure();
-                        Err(error)
-                    }
-                }
-            }
+            CircuitState::Closed => match operation() {
+                Ok(result) => {
+                    self.on_success();
+                    Ok(result)
+                },
+                Err(error) => {
+                    self.on_failure();
+                    Err(error)
+                },
+            },
             CircuitState::Open => {
                 if self.should_attempt_reset() {
                     self.state = CircuitState::HalfOpen;
@@ -193,36 +200,34 @@ impl CircuitBreaker {
                     // Return a circuit breaker error
                     operation() // This will likely fail, but maintains the error type
                 }
-            }
-            CircuitState::HalfOpen => {
-                match operation() {
-                    Ok(result) => {
-                        self.on_success();
-                        Ok(result)
-                    }
-                    Err(error) => {
-                        self.on_failure();
-                        Err(error)
-                    }
-                }
-            }
+            },
+            CircuitState::HalfOpen => match operation() {
+                Ok(result) => {
+                    self.on_success();
+                    Ok(result)
+                },
+                Err(error) => {
+                    self.on_failure();
+                    Err(error)
+                },
+            },
         }
     }
-    
+
     fn on_success(&mut self) {
         self.failure_count = 0;
         self.state = CircuitState::Closed;
     }
-    
+
     fn on_failure(&mut self) {
         self.failure_count += 1;
         self.last_failure_time = Some(SystemTime::now());
-        
+
         if self.failure_count >= self.failure_threshold {
             self.state = CircuitState::Open;
         }
     }
-    
+
     fn should_attempt_reset(&self) -> bool {
         if let Some(last_failure) = self.last_failure_time {
             if let Ok(elapsed) = SystemTime::now().duration_since(last_failure) {
@@ -231,7 +236,7 @@ impl CircuitBreaker {
         }
         false
     }
-    
+
     pub fn state(&self) -> CircuitState {
         self.state
     }
