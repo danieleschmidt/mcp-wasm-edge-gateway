@@ -1,0 +1,176 @@
+[workspace]
+members = [
+    "crates/mcp-gateway",
+    "crates/mcp-router", 
+    "crates/mcp-models",
+    "crates/mcp-queue",
+    "crates/mcp-security",
+    "crates/mcp-telemetry",
+    "crates/mcp-common",
+]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.70"
+license = "Apache-2.0"
+authors = ["Terragon Labs <hello@terragon.ai>"]
+repository = "https://github.com/terragon-labs/mcp-wasm-edge-gateway"
+homepage = "https://github.com/terragon-labs/mcp-wasm-edge-gateway"
+documentation = "https://docs.rs/mcp-wasm-edge-gateway"
+description = "Ultra-lightweight Model Context Protocol gateway for edge devices"
+keywords = ["mcp", "edge-computing", "wasm", "rust", "ai", "iot", "embedded"]
+categories = ["web-programming", "embedded", "wasm", "api-bindings"]
+
+[workspace.dependencies]
+# Async runtime and utilities
+tokio = { version = "1.35", features = ["rt", "rt-multi-thread", "macros", "sync", "time", "fs", "io-util", "net"] }
+tokio-tungstenite = { version = "0.20", features = ["native-tls"] }
+futures = "0.3"
+async-trait = "0.1"
+
+# Serialization and data formats
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+serde_yaml = "0.9"
+toml = "0.8"
+bincode = "1.3"
+
+# HTTP and networking
+hyper = { version = "0.14", features = ["full"] }
+reqwest = { version = "0.11", features = ["json", "rustls-tls"], default-features = false }
+tower = { version = "0.4", features = ["full"] }
+tower-http = { version = "0.4", features = ["cors", "trace", "compression"] }
+axum = { version = "0.7", features = ["ws", "macros"] }
+
+# Cryptography and security
+ring = "0.17"
+rustls = { version = "0.21", features = ["dangerous_configuration"] }
+rustls-native-certs = "0.6"
+webpki-roots = "0.25"
+x509-parser = "0.15"
+
+# Database and storage
+sled = "0.34"
+sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "sqlite", "chrono", "uuid"] }
+
+# Compression and encoding
+flate2 = "1.0"
+lz4_flex = "0.11"
+base64 = "0.21"
+
+# Metrics and observability
+prometheus = { version = "0.13", features = ["process"] }
+opentelemetry = { version = "0.21", features = ["rt-tokio"] }
+opentelemetry-prometheus = "0.14"
+opentelemetry-otlp = { version = "0.14", features = ["tonic", "grpc-tonic"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+tracing-opentelemetry = "0.22"
+
+# Error handling and utilities
+anyhow = "1.0"
+thiserror = "1.0"
+uuid = { version = "1.6", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+once_cell = "1.19"
+parking_lot = "0.12"
+
+# Configuration and CLI
+clap = { version = "4.4", features = ["derive"] }
+config = "0.13"
+directories = "5.0"
+
+# WASM specific dependencies  
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+js-sys = "0.3"
+web-sys = { version = "0.3", features = [
+    "console",
+    "Window",
+    "Document", 
+    "Element",
+    "HtmlElement",
+    "Response",
+    "Request",
+    "RequestInit",
+    "RequestMode",
+    "Headers",
+    "AbortController",
+    "AbortSignal",
+    "Blob",
+    "File",
+    "FileReader",
+    "Crypto",
+    "SubtleCrypto",
+    "CryptoKey",
+    "CryptoKeyPair",
+    "MessageEvent",
+    "WebSocket",
+    "CloseEvent",
+    "ErrorEvent",
+] }
+
+# Memory management and collections
+lru = "0.12"
+dashmap = "5.5"
+
+# Math and ML utilities
+ndarray = "0.15"
+rand = "0.8"
+
+# Platform-specific dependencies will be handled in individual crates
+
+# Development dependencies
+[workspace.dev-dependencies]
+tokio-test = "0.4"
+wiremock = "0.5"
+tempfile = "3.8"
+criterion = { version = "0.5", features = ["html_reports"] }
+proptest = "1.4"
+mockall = "0.12"
+serial_test = "3.0"
+
+# Profile configurations
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
+
+[profile.release-wasm]
+inherits = "release"
+opt-level = "s"
+lto = true
+codegen-units = 1
+panic = "abort"
+
+[profile.dev]
+opt-level = 0
+debug = true
+split-debuginfo = "unpacked"
+
+[profile.test]
+opt-level = 1
+debug = true
+
+[profile.bench]
+opt-level = 3
+debug = true
+lto = true
+
+# Features for conditional compilation
+[workspace.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+# Workspace-level features
+[workspace.features]
+default = ["native"]
+native = ["tokio/rt-multi-thread", "tokio/net", "tokio/fs"]
+wasm = ["wasm-bindgen", "web-sys", "js-sys"]
+tpm = ["tpm2-tss"]
+gpu = []
+simd = []
