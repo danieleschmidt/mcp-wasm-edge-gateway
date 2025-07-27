@@ -1,0 +1,54 @@
+#!/usr/bin/env sh
+. "$(dirname -- "$0")/_/husky.sh"
+
+echo "🔍 Running pre-commit checks..."
+
+# Check if we're in a Rust project
+if [ ! -f "Cargo.toml" ]; then
+    echo "⚠️  No Cargo.toml found, skipping Rust checks"
+    exit 0
+fi
+
+# Format check
+echo "📝 Checking code formatting..."
+if ! cargo fmt --all -- --check; then
+    echo "❌ Code formatting check failed!"
+    echo "💡 Run 'cargo fmt' to fix formatting issues"
+    exit 1
+fi
+
+# Clippy check
+echo "🔍 Running clippy lints..."
+if ! cargo clippy --all-targets --all-features -- -D warnings; then
+    echo "❌ Clippy checks failed!"
+    echo "💡 Fix the clippy warnings before committing"
+    exit 1
+fi
+
+# Security audit
+echo "🔒 Running security audit..."
+if ! cargo audit; then
+    echo "⚠️  Security vulnerabilities found!"
+    echo "💡 Review and fix security issues before committing"
+    exit 1
+fi
+
+# Check for secrets in staged files
+echo "🕵️  Checking for secrets..."
+if git diff --cached --name-only | xargs grep -l "api_key\|password\|secret\|token" 2>/dev/null; then
+    echo "❌ Potential secrets found in staged files!"
+    echo "💡 Remove secrets before committing"
+    exit 1
+fi
+
+# Test check (only if tests exist)
+if [ -d "tests" ] || grep -q "\[\[test\]\]" Cargo.toml 2>/dev/null; then
+    echo "🧪 Running tests..."
+    if ! cargo test --all-features; then
+        echo "❌ Tests failed!"
+        echo "💡 Fix failing tests before committing"
+        exit 1
+    fi
+fi
+
+echo "✅ All pre-commit checks passed!"

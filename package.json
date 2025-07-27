@@ -1,0 +1,78 @@
+{
+  "name": "mcp-wasm-edge-gateway",
+  "version": "0.1.0",
+  "description": "Ultra-lightweight Model Context Protocol gateway for edge devices",
+  "private": true,
+  "scripts": {
+    "dev": "cargo watch -x 'run --bin gateway'",
+    "build": "cargo build --release",
+    "build:wasm": "wasm-pack build --target web --out-dir pkg-web",
+    "build:wasm-node": "wasm-pack build --target nodejs --out-dir pkg-node",
+    "build:all": "npm run build && npm run build:wasm && npm run build:wasm-node",
+    "test": "cargo test --all-features",
+    "test:integration": "cargo test --test integration --features integration-tests",
+    "test:wasm": "wasm-pack test --node",
+    "test:all": "npm run test && npm run test:integration && npm run test:wasm",
+    "lint": "cargo clippy --all-targets --all-features -- -D warnings",
+    "format": "cargo fmt --all",
+    "format:check": "cargo fmt --all -- --check",
+    "audit": "cargo audit",
+    "security": "cargo audit && cargo deny check",
+    "clean": "cargo clean && rm -rf pkg-* target/ node_modules/",
+    "docs": "cargo doc --no-deps --open",
+    "docs:build": "cargo doc --no-deps",
+    "bench": "cargo bench",
+    "profile": "cargo build --release && perf record --call-graph dwarf target/release/gateway",
+    "size": "cargo bloat --release",
+    "tree": "cargo tree",
+    "outdated": "cargo outdated",
+    "update": "cargo update",
+    "check": "cargo check --all-targets --all-features",
+    "verify": "npm run format:check && npm run lint && npm run test:all && npm run security",
+    "release": "semantic-release",
+    "serve:docs": "basic-http-server docs/",
+    "serve:wasm": "basic-http-server pkg-web/ --addr 127.0.0.1:8080",
+    "docker:build": "docker build -t mcp-gateway:latest .",
+    "docker:run": "docker run -p 8080:8080 mcp-gateway:latest",
+    "cross:build": "npm run cross:pi && npm run cross:jetson && npm run cross:esp32",
+    "cross:pi": "cargo build --release --target aarch64-unknown-linux-gnu",
+    "cross:jetson": "cargo build --release --target aarch64-unknown-linux-gnu --features gpu",
+    "cross:esp32": "cargo build --release --target xtensa-esp32-none-elf --features embedded"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-org/mcp-wasm-edge-gateway.git"
+  },
+  "keywords": [
+    "mcp",
+    "wasm",
+    "edge",
+    "ai",
+    "iot",
+    "rust",
+    "gateway",
+    "model-context-protocol"
+  ],
+  "author": "Terragon Labs <edge-ai@terragon.ai>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/your-org/mcp-wasm-edge-gateway/issues"
+  },
+  "homepage": "https://github.com/your-org/mcp-wasm-edge-gateway#readme",
+  "devDependencies": {
+    "@semantic-release/changelog": "^6.0.3",
+    "@semantic-release/git": "^10.0.1",
+    "semantic-release": "^22.0.12"
+  },
+  "dependencies": {
+    "@wasmer/cli": "^1.0.0",
+    "wasm-opt": "^1.3.0"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

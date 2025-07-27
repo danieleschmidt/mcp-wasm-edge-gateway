@@ -1,0 +1,35 @@
+# Grafana datasource configuration for Prometheus
+
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    jsonData:
+      graphiteVersion: "1.1"
+      tlsAuth: false
+      tlsAuthWithCACert: false
+      httpMethod: POST
+      prometheusType: Prometheus
+      prometheusVersion: "2.40.0"
+      cacheLevel: 'High'
+      disableMetricsLookup: false
+      incrementalQueryOverlapWindow: 10m
+      queryTimeout: 60s
+      defaultRegion: 'default'
+    secureJsonData: {}
+    
+  - name: Loki
+    type: loki
+    access: proxy
+    url: http://loki:3100
+    jsonData:
+      maxLines: 1000
+      derivedFields:
+        - datasourceUid: prometheus_uid
+          matcherRegex: "level=(\\w+)"
+          name: "Log Level"
+          url: "/explore?orgId=1&left=%5B%22now-1h%22,%22now%22,%22Prometheus%22,%7B%22expr%22:%22%7Blevel%3D%5C%22$${__value.raw}%5C%22%7D%22%7D%5D"

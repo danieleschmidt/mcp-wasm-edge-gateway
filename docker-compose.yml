@@ -1,0 +1,161 @@
+# Docker Compose for MCP WASM Edge Gateway development
+
+version: '3.8'
+
+services:
+  # Main gateway service
+  gateway:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+      target: builder
+    image: mcp-gateway:dev
+    container_name: mcp-gateway
+    restart: unless-stopped
+    ports:
+      - "8080:8080"   # Gateway API
+      - "9090:9090"   # Metrics/Prometheus
+    environment:
+      - RUST_LOG=mcp_gateway=debug,info
+      - GATEWAY_BIND_ADDRESS=0.0.0.0:8080
+      - DATABASE_URL=sqlite:///var/lib/mcp/gateway.db
+      - TELEMETRY_ENABLED=true
+      - METRICS_ENDPOINT=http://prometheus:9090/metrics
+    volumes:
+      - gateway_data:/var/lib/mcp
+      - gateway_models:/opt/models
+      - ./mcp-edge.toml:/etc/mcp/config.toml:ro
+    networks:
+      - mcp-network
+    depends_on:
+      - prometheus
+      - redis
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/gateway", "health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Redis for caching and queue management
+  redis:
+    image: redis:7-alpine
+    container_name: mcp-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - mcp-network
+    command: redis-server --appendonly yes
+
+  # Prometheus for metrics collection
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: mcp-prometheus
+    restart: unless-stopped
+    ports:
+      - "9091:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    networks:
+      - mcp-network
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+
+  # Grafana for visualization
+  grafana:
+    image: grafana/grafana:latest
+    container_name: mcp-grafana
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources:ro
+    networks:
+      - mcp-network
+    depends_on:
+      - prometheus
+
+  # Cloud MCP mock service for testing
+  mock-cloud:
+    image: wiremock/wiremock:latest
+    container_name: mcp-mock-cloud
+    restart: unless-stopped
+    ports:
+      - "8081:8080"
+    volumes:
+      - ./tests/wiremock:/home/wiremock
+    networks:
+      - mcp-network
+    command: ["--global-response-templating", "--disable-gzip", "--verbose"]
+
+  # Test database for integration tests
+  test-db:
+    image: postgres:15-alpine
+    container_name: mcp-test-db
+    restart: unless-stopped
+    environment:
+      - POSTGRES_DB=mcp_test
+      - POSTGRES_USER=test_user
+      - POSTGRES_PASSWORD=test_pass
+    volumes:
+      - test_db_data:/var/lib/postgresql/data
+    networks:
+      - mcp-network
+    ports:
+      - "5432:5432"
+    profiles:
+      - testing
+
+  # WASM development server
+  wasm-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: builder
+    container_name: mcp-wasm-dev
+    restart: unless-stopped
+    ports:
+      - "8082:8080"   # WASM dev server
+    volumes:
+      - ./pkg-web:/opt/wasm/web:ro
+      - ./examples/wasm:/opt/examples:ro
+    networks:
+      - mcp-network
+    command: ["basic-http-server", "/opt/wasm/web", "--addr", "0.0.0.0:8080"]
+    profiles:
+      - development
+
+volumes:
+  gateway_data:
+    driver: local
+  gateway_models:
+    driver: local
+  redis_data:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+  test_db_data:
+    driver: local
+
+networks:
+  mcp-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

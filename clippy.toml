@@ -1,0 +1,36 @@
+# Clippy configuration for MCP WASM Edge Gateway
+
+# Cognitive complexity limits
+cognitive-complexity-threshold = 25
+
+# Type complexity limits  
+type-complexity-threshold = 250
+
+# Documentation requirements
+missing-docs-in-crate-items = true
+
+# Enum variant name threshold
+enum-variant-name-threshold = 3
+
+# Performance lints
+vec-box-size-threshold = 4096
+trivial-copy-size-limit = 128
+
+# String literal threshold
+string-literal-as-bytes-threshold = 16
+
+# Avoid breaking changes
+avoid-breaking-exported-api = true
+
+# Maximum function length in lines
+too-many-lines-threshold = 100
+
+# Arithmetic operations
+arithmetic-side-effects-allowed = [
+    "std::num::Saturating",
+    "std::num::Wrapping"
+]
+
+# Stack size threshold for large enums/structs
+large-stack-arrays-threshold = 512000
+large-stack-frames-threshold = 512000

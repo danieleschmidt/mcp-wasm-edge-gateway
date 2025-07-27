@@ -1,0 +1,218 @@
+[package]
+name = "mcp-wasm-edge-gateway"
+version = "0.1.0"
+edition = "2021"
+authors = ["Terragon Labs <edge-ai@terragon.ai>"]
+description = "Ultra-lightweight Model Context Protocol gateway for edge devices"
+documentation = "https://docs.rs/mcp-wasm-edge-gateway"
+homepage = "https://github.com/your-org/mcp-wasm-edge-gateway"
+repository = "https://github.com/your-org/mcp-wasm-edge-gateway"
+license = "MIT"
+keywords = ["mcp", "wasm", "edge", "ai", "iot", "gateway"]
+categories = ["web-programming", "embedded", "wasm", "api-bindings"]
+readme = "README.md"
+include = [
+    "src/**/*",
+    "tests/**/*",
+    "benches/**/*",
+    "examples/**/*",
+    "Cargo.toml",
+    "LICENSE",
+    "README.md"
+]
+
+[lib]
+name = "mcp_gateway"
+crate-type = ["cdylib", "rlib"]
+
+[[bin]]
+name = "gateway"
+path = "src/bin/gateway.rs"
+
+[[bin]]
+name = "cli"
+path = "src/bin/cli.rs"
+
+[dependencies]
+# Async runtime
+tokio = { version = "1.35", features = [
+    "rt-multi-thread",
+    "net",
+    "time",
+    "sync",
+    "signal",
+    "fs",
+    "io-util",
+    "macros"
+], optional = true }
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+toml = "0.8"
+
+# HTTP and networking
+reqwest = { version = "0.11", features = ["json", "rustls-tls"], default-features = false, optional = true }
+hyper = { version = "0.14", features = ["server", "http1", "http2", "tcp"], optional = true }
+tonic = { version = "0.10", optional = true }
+prost = { version = "0.12", optional = true }
+
+# Database
+sqlx = { version = "0.7", features = ["sqlite", "runtime-tokio-rustls", "migrate", "chrono"], optional = true }
+
+# Cryptography and security
+ring = "0.17"
+rustls = { version = "0.21", features = ["dangerous_configuration"], optional = true }
+webpki-roots = { version = "0.25", optional = true }
+
+# Compression
+zstd = { version = "0.13", optional = true }
+lz4_flex = { version = "0.11", optional = true }
+
+# Logging and metrics
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"], optional = true }
+metrics = "0.22"
+metrics-exporter-prometheus = { version = "0.13", optional = true }
+
+# Utilities
+uuid = { version = "1.6", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+anyhow = "1.0"
+thiserror = "1.0"
+once_cell = "1.19"
+futures = "0.3"
+
+# WASM-specific dependencies
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+js-sys = "0.3"
+web-sys = { version = "0.3", features = [
+    "console",
+    "Window",
+    "Document",
+    "Element",
+    "HtmlElement",
+    "Request",
+    "RequestInit",
+    "Response",
+    "Headers",
+    "AbortController",
+    "AbortSignal",
+    "MessageEvent",
+    "WebSocket",
+    "BinaryType",
+    "Blob",
+    "FileReader",
+    "ProgressEvent",
+    "Event",
+    "EventTarget",
+    "Storage",
+    "Location"
+] }
+getrandom = { version = "0.2", features = ["js"] }
+
+# Embedded-specific dependencies
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+# Native-only dependencies that don't compile to WASM
+
+[dev-dependencies]
+# Testing framework
+tokio-test = "0.4"
+criterion = { version = "0.5", features = ["html_reports"] }
+proptest = "1.4"
+mockall = "0.12"
+wiremock = "0.6"
+tempfile = "3.8"
+assert_matches = "1.5"
+
+# Test utilities
+env_logger = "0.10"
+serial_test = "3.0"
+
+[features]
+default = ["native", "http-server", "database", "compression", "metrics"]
+
+# Platform features
+native = ["tokio", "tracing-subscriber"]
+wasm = []
+embedded = []
+
+# Component features
+http-server = ["hyper", "tokio"]
+grpc-server = ["tonic", "prost", "tokio"]
+database = ["sqlx"]
+compression = ["zstd", "lz4_flex"]
+metrics = ["metrics-exporter-prometheus"]
+tls = ["rustls", "webpki-roots"]
+
+# Security features
+hardware-security = []
+tpm = ["hardware-security"]
+
+# Platform-specific features
+raspberry-pi = ["native", "hardware-security"]
+esp32 = ["embedded"]
+jetson = ["native", "hardware-security"]
+
+# Development features
+integration-tests = []
+
+[profile.release]
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
+opt-level = "s"  # Optimize for size
+
+[profile.release.package."*"]
+opt-level = "s"
+
+[profile.dev]
+debug = true
+opt-level = 0
+
+[profile.test]
+debug = true
+opt-level = 0
+
+[profile.bench]
+debug = false
+opt-level = 3
+lto = "thin"
+
+# WASM-specific profile
+[profile.wasm-release]
+inherits = "release"
+opt-level = "s"
+lto = true
+codegen-units = 1
+panic = "abort"
+
+[[bench]]
+name = "gateway_benchmarks"
+harness = false
+
+[[bench]]
+name = "model_inference"
+harness = false
+
+[[example]]
+name = "basic_gateway"
+required-features = ["native", "http-server"]
+
+[[example]]
+name = "wasm_browser"
+required-features = ["wasm"]
+
+[[example]]
+name = "embedded_esp32"
+required-features = ["embedded"]
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = ["-Os", "--enable-simd"]

@@ -1,0 +1,135 @@
+# Prometheus configuration for MCP WASM Edge Gateway
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    monitor: 'mcp-gateway-monitor'
+    environment: 'development'
+
+rule_files:
+  - "rules/*.yml"
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+          - alertmanager:9093
+
+scrape_configs:
+  # MCP Gateway metrics
+  - job_name: 'mcp-gateway'
+    static_configs:
+      - targets: ['gateway:9090']
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+    scrape_timeout: 5s
+    honor_labels: true
+    params:
+      format: ['prometheus']
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: gateway:9090
+
+  # Gateway health checks
+  - job_name: 'mcp-gateway-health'
+    static_configs:
+      - targets: ['gateway:8080']
+    metrics_path: '/health'
+    scrape_interval: 30s
+    honor_labels: true
+
+  # Redis metrics
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis:6379']
+    metrics_path: '/metrics'
+
+  # Node exporter for system metrics
+  - job_name: 'node-exporter'
+    static_configs:
+      - targets: ['node-exporter:9100']
+
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # Mock cloud service monitoring
+  - job_name: 'mock-cloud'
+    static_configs:
+      - targets: ['mock-cloud:8080']
+    metrics_path: '/__admin/metrics'
+    scrape_interval: 30s
+
+# Recording rules for performance metrics
+recording_rules:
+  - name: mcp_gateway_performance
+    rules:
+      - record: mcp_gateway:request_rate_5m
+        expr: rate(mcp_gateway_requests_total[5m])
+        
+      - record: mcp_gateway:error_rate_5m
+        expr: rate(mcp_gateway_requests_total{status=~"4..|5.."}[5m]) / rate(mcp_gateway_requests_total[5m])
+        
+      - record: mcp_gateway:response_time_p99_5m
+        expr: histogram_quantile(0.99, rate(mcp_gateway_request_duration_seconds_bucket[5m]))
+        
+      - record: mcp_gateway:response_time_p95_5m
+        expr: histogram_quantile(0.95, rate(mcp_gateway_request_duration_seconds_bucket[5m]))
+        
+      - record: mcp_gateway:response_time_p50_5m
+        expr: histogram_quantile(0.50, rate(mcp_gateway_request_duration_seconds_bucket[5m]))
+
+# Alerting rules
+alerting_rules:
+  - name: mcp_gateway_alerts
+    rules:
+      - alert: HighErrorRate
+        expr: mcp_gateway:error_rate_5m > 0.05
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High error rate detected"
+          description: "Error rate is {{ $value | humanizePercentage }} over the last 5 minutes"
+          
+      - alert: HighResponseTime
+        expr: mcp_gateway:response_time_p99_5m > 1.0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High response time detected"
+          description: "99th percentile response time is {{ $value }}s"
+          
+      - alert: GatewayDown
+        expr: up{job="mcp-gateway"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "MCP Gateway is down"
+          description: "MCP Gateway has been down for more than 1 minute"
+          
+      - alert: HighMemoryUsage
+        expr: mcp_gateway_memory_usage_bytes / mcp_gateway_memory_limit_bytes > 0.8
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage"
+          description: "Memory usage is {{ $value | humanizePercentage }} of limit"
+          
+      - alert: QueueBacklog
+        expr: mcp_gateway_queue_size > 1000
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Large queue backlog"
+          description: "Queue has {{ $value }} pending requests"

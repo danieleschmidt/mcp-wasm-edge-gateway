@@ -1,0 +1,44 @@
+# cargo-audit configuration for MCP WASM Edge Gateway
+
+[advisories]
+# Ignore advisories for crates that are not applicable to our use case
+ignore = [
+    # Example: RUSTSEC-2020-0016 - net2 deprecation (if using deprecated net2)
+    # "RUSTSEC-2020-0016",
+]
+
+# Set the minimum CVSS score for vulnerabilities to be reported
+# Scores: 0.0-10.0, with 10.0 being the most severe
+# Default is 0.0 (report all vulnerabilities)
+severity_threshold = 0.0
+
+[database]
+# Path to the advisory database
+path = "~/.cargo/advisory-db"
+
+# URLs of advisory databases to fetch
+urls = ["https://github.com/rustsec/advisory-db.git"]
+
+# Fetch the advisory database automatically
+fetch = true
+
+[output]
+# Output format: "human" (default), "json", "sarif"
+format = "human"
+
+# Show additional information
+show_tree = false
+deny_warnings = true
+
+[target]
+# Target architectures to check
+# Leave empty to check all targets
+arch = []
+os = []
+
+[yanked]
+# Check for yanked crates
+enabled = true
+
+# Ignore yanked crates that are not in the dependency tree
+ignore_source = []

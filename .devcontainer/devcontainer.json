@@ -1,0 +1,83 @@
+{
+  "name": "MCP WASM Edge Gateway",
+  "image": "mcr.microsoft.com/devcontainers/rust:1-1-bullseye",
+  
+  "features": {
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "lts"
+    },
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {},
+    "ghcr.io/devcontainers/features/github-cli:1": {}
+  },
+
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "rust-lang.rust-analyzer",
+        "vadimcn.vscode-lldb",
+        "tamasfe.even-better-toml",
+        "serayuzgur.crates",
+        "ms-vscode.vscode-json",
+        "redhat.vscode-yaml",
+        "ms-azuretools.vscode-docker",
+        "GitHub.copilot",
+        "ms-vscode.test-adapter-converter",
+        "hbenl.vscode-test-explorer",
+        "webfreak.debug",
+        "formulahendry.code-runner"
+      ],
+      "settings": {
+        "rust-analyzer.checkOnSave.command": "clippy",
+        "rust-analyzer.cargo.features": "all",
+        "rust-analyzer.procMacro.enable": true,
+        "rust-analyzer.completion.autoimport.enable": true,
+        "rust-analyzer.imports.granularity.group": "module",
+        "rust-analyzer.imports.prefix": "crate",
+        "editor.formatOnSave": true,
+        "editor.codeActionsOnSave": {
+          "source.fixAll.eslint": true,
+          "source.organizeImports": true
+        },
+        "files.associations": {
+          "*.toml": "toml",
+          "Cargo.lock": "toml"
+        },
+        "terminal.integrated.defaultProfile.linux": "bash"
+      }
+    }
+  },
+
+  "onCreateCommand": "bash .devcontainer/setup.sh",
+  "postCreateCommand": "bash .devcontainer/post-create.sh",
+
+  "forwardPorts": [8080, 3000, 9090],
+  "portsAttributes": {
+    "8080": {
+      "label": "Gateway API",
+      "onAutoForward": "notify"
+    },
+    "3000": {
+      "label": "Development Server",
+      "onAutoForward": "silent"
+    },
+    "9090": {
+      "label": "Metrics/Prometheus",
+      "onAutoForward": "silent"
+    }
+  },
+
+  "mounts": [
+    "source=mcp-gateway-cargo-cache,target=/usr/local/cargo/registry,type=volume",
+    "source=mcp-gateway-target-cache,target=${containerWorkspaceFolder}/target,type=volume"
+  ],
+
+  "remoteEnv": {
+    "RUST_LOG": "debug",
+    "CARGO_TARGET_DIR": "/workspaces/mcp-wasm-edge-gateway/target",
+    "PATH": "${containerEnv:PATH}:/usr/local/cargo/bin"
+  },
+
+  "containerEnv": {
+    "TZ": "UTC"
+  }
+}

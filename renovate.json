@@ -1,0 +1,232 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": "Renovate configuration for MCP WASM Edge Gateway - Automated dependency updates",
+  
+  "extends": [
+    "config:base",
+    "security:openssf-scorecard",
+    ":dependencyDashboard",
+    ":semanticCommits",
+    ":separatePatchReleases"
+  ],
+  
+  "labels": ["dependencies"],
+  "assignees": ["@admin-team"],
+  "reviewers": ["@security-team"],
+  
+  "schedule": ["before 6am on Monday"],
+  "timezone": "UTC",
+  
+  "packageRules": [
+    {
+      "description": "Group Rust ecosystem updates",
+      "groupName": "Rust ecosystem",
+      "matchManagers": ["cargo"],
+      "matchPackagePatterns": [
+        "^tokio",
+        "^serde",
+        "^clap",
+        "^tracing",
+        "^anyhow",
+        "^thiserror"
+      ],
+      "schedule": ["before 6am on Monday"],
+      "automerge": false
+    },
+    
+    {
+      "description": "Auto-merge patch updates for stable dependencies",
+      "matchManagers": ["cargo"],
+      "matchUpdateTypes": ["patch"],
+      "matchPackagePatterns": [
+        "^serde",
+        "^uuid",
+        "^chrono",
+        "^once_cell"
+      ],
+      "automerge": true,
+      "automergeType": "pr",
+      "platformAutomerge": true
+    },
+    
+    {
+      "description": "Security updates - high priority",
+      "matchPackagePatterns": [".*"],
+      "vulnerabilityAlerts": {
+        "enabled": true
+      },
+      "prPriority": 10,
+      "labels": ["security", "dependencies"],
+      "reviewers": ["@security-team"],
+      "schedule": ["at any time"],
+      "automerge": false
+    },
+    
+    {
+      "description": "Development dependencies - separate group",
+      "groupName": "Development dependencies",
+      "matchManagers": ["cargo"],
+      "matchDepTypes": ["dev-dependencies"],
+      "schedule": ["before 6am on Monday"],
+      "automerge": true,
+      "automergeType": "pr",
+      "platformAutomerge": true
+    },
+    
+    {
+      "description": "Node.js ecosystem updates",
+      "groupName": "Node.js ecosystem",
+      "matchManagers": ["npm"],
+      "matchPackagePatterns": [
+        "^@semantic-release/",
+        "^semantic-release$"
+      ],
+      "schedule": ["before 6am on Monday"]
+    },
+    
+    {
+      "description": "Docker base image updates",
+      "groupName": "Docker base images",
+      "matchManagers": ["dockerfile"],
+      "schedule": ["before 6am on Monday"],
+      "automerge": false,
+      "labels": ["docker", "dependencies"]
+    },
+    
+    {
+      "description": "GitHub Actions updates",
+      "groupName": "GitHub Actions",
+      "matchManagers": ["github-actions"],
+      "schedule": ["before 6am on Monday"],
+      "automerge": true,
+      "automergeType": "pr",
+      "platformAutomerge": true
+    },
+    
+    {
+      "description": "WASM-related dependencies",
+      "groupName": "WASM ecosystem",
+      "matchManagers": ["cargo"],
+      "matchPackagePatterns": [
+        "^wasm-bindgen",
+        "^js-sys",
+        "^web-sys",
+        "^getrandom"
+      ],
+      "schedule": ["before 6am on Monday"],
+      "automerge": false
+    },
+    
+    {
+      "description": "Cryptography and security libraries",
+      "groupName": "Security libraries",
+      "matchManagers": ["cargo"],
+      "matchPackagePatterns": [
+        "^ring",
+        "^rustls",
+        "^webpki",
+        "^openssl"
+      ],
+      "schedule": ["before 6am on Monday"],
+      "automerge": false,
+      "labels": ["security", "dependencies"],
+      "reviewers": ["@security-team"]
+    }
+  ],
+  
+  "cargo": {
+    "enabled": true,
+    "rangeStrategy": "bump"
+  },
+  
+  "dockerfile": {
+    "enabled": true
+  },
+  
+  "github-actions": {
+    "enabled": true,
+    "pinDigests": true
+  },
+  
+  "npm": {
+    "enabled": true,
+    "rangeStrategy": "bump"
+  },
+  
+  "vulnerabilityAlerts": {
+    "enabled": true,
+    "prCreation": "immediate",
+    "labels": ["security"],
+    "assignees": ["@security-team"],
+    "reviewers": ["@security-team"]
+  },
+  
+  "osvVulnerabilityAlerts": true,
+  
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": ["before 6am on the first day of the month"],
+    "commitMessageAction": "Lock file maintenance"
+  },
+  
+  "prConcurrentLimit": 5,
+  "prHourlyLimit": 2,
+  
+  "commitMessageTopic": "{{depName}}",
+  "commitMessageAction": "update",
+  "commitMessageExtra": "to {{#if isMajor}}v{{{newMajor}}}{{else}}{{#if isSingleVersion}}v{{{newVersion}}}{{else}}{{{newValue}}}{{/if}}{{/if}}",
+  
+  "prBodyTemplate": "{{{header}}}{{{table}}}{{{notes}}}{{{changelogs}}}{{{configDescription}}}{{{footer}}}",
+  
+  "customManagers": [
+    {
+      "description": "Update Rust version in Dockerfile",
+      "customType": "regex",
+      "fileMatch": ["^Dockerfile$"],
+      "matchStrings": [
+        "FROM rust:(?<currentValue>.*?) as"
+      ],
+      "depNameTemplate": "rust",
+      "packageNameTemplate": "rust",
+      "datasourceTemplate": "docker",
+      "versioningTemplate": "docker"
+    },
+    
+    {
+      "description": "Update WASM tools in devcontainer",
+      "customType": "regex",
+      "fileMatch": ["^\\.devcontainer/.*\\.sh$"],
+      "matchStrings": [
+        "wasm-pack@(?<currentValue>.*?) "
+      ],
+      "depNameTemplate": "wasm-pack",
+      "packageNameTemplate": "wasm-pack",
+      "datasourceTemplate": "crate"
+    }
+  ],
+  
+  "ignoreDeps": [
+    "node"
+  ],
+  
+  "ignorePaths": [
+    "**/node_modules/**",
+    "**/target/**",
+    "**/pkg-*/**"
+  ],
+  
+  "semanticCommits": "enabled",
+  "semanticCommitType": "chore",
+  "semanticCommitScope": "deps",
+  
+  "dependencyDashboard": true,
+  "dependencyDashboardTitle": "Dependency Dashboard",
+  "dependencyDashboardHeader": "This issue lists Renovate updates and detected dependencies. Read the [Dependency Dashboard](https://docs.renovatebot.com/key-concepts/dashboard/) docs to learn more.",
+  "dependencyDashboardLabels": ["dependencies"],
+  
+  "configMigration": true,
+  
+  "postUpdateOptions": [
+    "cargoUpdateLockFile"
+  ]
+}
