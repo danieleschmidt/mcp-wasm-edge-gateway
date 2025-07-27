@@ -2,15 +2,15 @@
 
 use axum::{
     extract::Request,
+    http::{HeaderMap, HeaderValue},
     middleware::Next,
     response::Response,
-    http::{HeaderMap, HeaderValue},
 };
 use std::sync::Arc;
 use std::time::Instant;
 use tower::{Layer, Service};
-use uuid::Uuid;
 use tracing::{info, warn};
+use uuid::Uuid;
 
 /// Request ID middleware to add unique IDs to requests
 #[derive(Clone)]
@@ -26,7 +26,9 @@ impl<S> Layer<S> for RequestIdLayer {
     type Service = RequestIdMiddleware<S>;
 
     fn layer(&self, inner: S) -> Self::Service {
-        RequestIdMiddleware { inner }
+        RequestIdMiddleware {
+            inner,
+        }
     }
 }
 
@@ -42,26 +44,29 @@ where
 {
     type Response = S::Response;
     type Error = S::Error;
-    type Future = std::pin::Pin<Box<dyn std::future::Future<Output = Result<Self::Response, Self::Error>> + Send>>;
+    type Future = std::pin::Pin<
+        Box<dyn std::future::Future<Output = Result<Self::Response, Self::Error>> + Send>,
+    >;
 
-    fn poll_ready(&mut self, cx: &mut std::task::Context<'_>) -> std::task::Poll<Result<(), Self::Error>> {
+    fn poll_ready(
+        &mut self,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Result<(), Self::Error>> {
         self.inner.poll_ready(cx)
     }
 
     fn call(&mut self, mut request: Request) -> Self::Future {
         let request_id = Uuid::new_v4().to_string();
-        request.headers_mut().insert(
-            "x-request-id",
-            HeaderValue::from_str(&request_id).unwrap()
-        );
+        request
+            .headers_mut()
+            .insert("x-request-id", HeaderValue::from_str(&request_id).unwrap());
 
         let future = self.inner.call(request);
         Box::pin(async move {
             let mut response = future.await?;
-            response.headers_mut().insert(
-                "x-request-id",
-                HeaderValue::from_str(&request_id).unwrap()
-            );
+            response
+                .headers_mut()
+                .insert("x-request-id", HeaderValue::from_str(&request_id).unwrap());
             Ok(response)
         })
     }
@@ -109,9 +114,14 @@ where
 {
     type Response = S::Response;
     type Error = S::Error;
-    type Future = std::pin::Pin<Box<dyn std::future::Future<Output = Result<Self::Response, Self::Error>> + Send>>;
+    type Future = std::pin::Pin<
+        Box<dyn std::future::Future<Output = Result<Self::Response, Self::Error>> + Send>,
+    >;
 
-    fn poll_ready(&mut self, cx: &mut std::task::Context<'_>) -> std::task::Poll<Result<(), Self::Error>> {
+    fn poll_ready(
+        &mut self,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Result<(), Self::Error>> {
         self.inner.poll_ready(cx)
     }
 
@@ -141,7 +151,9 @@ impl<S> Layer<S> for MetricsLayer {
     type Service = MetricsMiddleware<S>;
 
     fn layer(&self, inner: S) -> Self::Service {
-        MetricsMiddleware { inner }
+        MetricsMiddleware {
+            inner,
+        }
     }
 }
 
@@ -157,9 +169,14 @@ where
 {
     type Response = S::Response;
     type Error = S::Error;
-    type Future = std::pin::Pin<Box<dyn std::future::Future<Output = Result<Self::Response, Self::Error>> + Send>>;
+    type Future = std::pin::Pin<
+        Box<dyn std::future::Future<Output = Result<Self::Response, Self::Error>> + Send>,
+    >;
 
-    fn poll_ready(&mut self, cx: &mut std::task::Context<'_>) -> std::task::Poll<Result<(), Self::Error>> {
+    fn poll_ready(
+        &mut self,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Result<(), Self::Error>> {
         self.inner.poll_ready(cx)
     }
 
@@ -184,7 +201,7 @@ where
             );
 
             // TODO: Send metrics to telemetry collector
-            
+
             Ok(response)
         })
     }

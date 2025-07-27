@@ -254,7 +254,9 @@ impl Default for Config {
                 max_cpu_usage_percent: 80.0,
                 thermal_management: ThermalProfile::Moderate,
                 power_profile: PowerProfile::Balanced,
-                threading_model: ThreadingModel::MultiThreaded { max_threads: 4 },
+                threading_model: ThreadingModel::MultiThreaded {
+                    max_threads: 4,
+                },
                 enable_simd: true,
                 enable_gpu_acceleration: false,
             },

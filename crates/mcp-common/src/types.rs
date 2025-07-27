@@ -1,9 +1,9 @@
 //! Common types for the MCP Edge Gateway
 
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use uuid::Uuid;
-use chrono::{DateTime, Utc};
 
 /// Unique identifier for MCP requests
 pub type RequestId = Uuid;

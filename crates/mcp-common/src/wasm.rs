@@ -1,7 +1,7 @@
 //! WASM-specific utilities and bindings
 
-use wasm_bindgen::prelude::*;
 use js_sys::Promise;
+use wasm_bindgen::prelude::*;
 use web_sys::{console, window, Window};
 
 /// Initialize WASM module with logging
@@ -39,7 +39,7 @@ pub async fn sleep(ms: u32) -> Result<(), JsValue> {
             .set_timeout_with_callback_and_timeout_and_arguments_0(&resolve, ms as i32)
             .unwrap();
     });
-    
+
     wasm_bindgen_futures::JsFuture::from(promise).await?;
     Ok(())
 }
@@ -52,7 +52,9 @@ pub fn get_memory_usage() -> u32 {
     if let Some(performance) = window().and_then(|w| w.performance()) {
         if let Ok(memory) = js_sys::Reflect::get(&performance, &JsValue::from_str("memory")) {
             if let Some(memory_obj) = memory.dyn_ref::<js_sys::Object>() {
-                if let Ok(used) = js_sys::Reflect::get(memory_obj, &JsValue::from_str("usedJSHeapSize")) {
+                if let Ok(used) =
+                    js_sys::Reflect::get(memory_obj, &JsValue::from_str("usedJSHeapSize"))
+                {
                     return used.as_f64().unwrap_or(0.0) as u32 / 1024 / 1024; // Convert to MB
                 }
             }
@@ -85,7 +87,7 @@ impl LocalStorage {
     pub fn new() -> LocalStorage {
         LocalStorage
     }
-    
+
     #[wasm_bindgen]
     pub fn set_item(&self, key: &str, value: &str) -> Result<(), JsValue> {
         window()
@@ -95,7 +97,7 @@ impl LocalStorage {
             .unwrap()
             .set_item(key, value)
     }
-    
+
     #[wasm_bindgen]
     pub fn get_item(&self, key: &str) -> Option<String> {
         window()
@@ -106,7 +108,7 @@ impl LocalStorage {
             .get_item(key)
             .unwrap()
     }
-    
+
     #[wasm_bindgen]
     pub fn remove_item(&self, key: &str) -> Result<(), JsValue> {
         window()
@@ -137,13 +139,13 @@ impl PerformanceMeasure {
     pub fn new(name: &str) -> PerformanceMeasure {
         let start_time = get_timestamp();
         console_log!("Starting measurement: {}", name);
-        
+
         PerformanceMeasure {
             start_time,
             name: name.to_string(),
         }
     }
-    
+
     #[wasm_bindgen]
     pub fn end(&self) -> f64 {
         let duration = get_timestamp() - self.start_time;
@@ -184,7 +186,7 @@ impl WasmCapabilities {
     pub fn detect() -> WasmCapabilities {
         WasmCapabilities {
             simd: has_simd_support(),
-            threads: false, // Most browsers don't support WASM threads yet
+            threads: false,  // Most browsers don't support WASM threads yet
             memory64: false, // Memory64 is not widely supported
         }
     }

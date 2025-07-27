@@ -3,15 +3,15 @@
 //! This crate provides shared types, traits, and utilities used across
 //! all components of the MCP Edge Gateway system.
 
-pub mod error;
-pub mod types;
 pub mod config;
+pub mod error;
 pub mod metrics;
+pub mod types;
 pub mod utils;
 
-pub use error::{Result, Error};
-pub use types::*;
 pub use config::Config;
+pub use error::{Error, Result};
+pub use types::*;
 
 #[cfg(target_arch = "wasm32")]
 pub mod wasm;

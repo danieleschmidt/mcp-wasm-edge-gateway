@@ -4,7 +4,8 @@
 //! resource availability, and performance metrics.
 
 use async_trait::async_trait;
-use mcp_common::{Result, Error, MCPRequest, MCPResponse, RoutingDecision, ComponentHealth, Config};
+use mcp_common::metrics::ComponentHealth;
+use mcp_common::{Config, MCPRequest, MCPResponse, Result, RoutingDecision};
 use std::sync::Arc;
 
 /// Router trait for request routing decisions
@@ -12,23 +13,23 @@ use std::sync::Arc;
 pub trait Router {
     /// Route a request to the appropriate processor
     async fn route(&self, request: &MCPRequest) -> Result<RoutingDecision>;
-    
+
     /// Forward request to cloud endpoint
     async fn forward_to_cloud(&self, request: &MCPRequest, endpoint: &str) -> Result<MCPResponse>;
-    
+
     /// Update performance metrics for routing decisions
     async fn update_metrics(&self, metrics: &mcp_common::PerformanceMetrics) -> Result<()>;
-    
+
     /// Get health status
     async fn health_check(&self) -> Result<ComponentHealth>;
-    
+
     /// Shutdown the router
     async fn shutdown(&self) -> Result<()>;
 }
 
+mod cloud_client;
 mod intelligent_router;
 mod load_balancer;
-mod cloud_client;
 
 pub use intelligent_router::IntelligentRouter;
 
