@@ -1,0 +1,274 @@
+name: Security Checks
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  schedule:
+    # Run security checks daily at 03:00 UTC
+    - cron: '0 3 * * *'
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  security-audit:
+    name: Security Audit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install cargo-audit
+        run: cargo install cargo-audit
+
+      - name: Run cargo audit
+        run: cargo audit
+
+  dependency-check:
+    name: Dependency Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Run cargo deny
+        uses: EmbarkStudios/cargo-deny-action@v1
+        with:
+          log-level: warn
+          command: check
+          arguments: --all-features
+
+  secrets-scan:
+    name: Secrets Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run TruffleHog OSS
+        uses: trufflesecurity/trufflehog@main
+        with:
+          path: ./
+          base: ${{ github.event.repository.default_branch }}
+          head: HEAD
+          extra_args: --debug --only-verified
+
+  codeql:
+    name: CodeQL Analysis
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [ 'rust' ]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build project
+        run: cargo build --workspace
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:${{matrix.language}}"
+
+  container-scan:
+    name: Container Security Scan
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: |
+          if [ -f Dockerfile ]; then
+            docker build -t mcp-edge-gateway:test .
+          else
+            echo "No Dockerfile found, skipping container scan"
+            exit 0
+          fi
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'mcp-edge-gateway:test'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+
+      - name: Upload Trivy scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+  license-check:
+    name: License Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install cargo-license
+        run: cargo install cargo-license
+
+      - name: Check licenses
+        run: |
+          cargo license --json > licenses.json
+          echo "Checking for incompatible licenses..."
+          
+          # Check for GPL and other copyleft licenses
+          if grep -q '"license": "GPL' licenses.json; then
+            echo "❌ GPL license found - incompatible with Apache-2.0"
+            exit 1
+          fi
+          
+          if grep -q '"license": "AGPL' licenses.json; then
+            echo "❌ AGPL license found - incompatible with Apache-2.0"
+            exit 1
+          fi
+          
+          echo "✅ All licenses are compatible"
+
+      - name: Generate license report
+        run: |
+          echo "# License Report" > LICENSE_REPORT.md
+          echo "" >> LICENSE_REPORT.md
+          echo "## Dependencies and their licenses:" >> LICENSE_REPORT.md
+          echo "" >> LICENSE_REPORT.md
+          cargo license --authors --do-not-bundle | sort >> LICENSE_REPORT.md
+
+      - name: Upload license report
+        uses: actions/upload-artifact@v4
+        with:
+          name: license-report
+          path: LICENSE_REPORT.md
+
+  supply-chain:
+    name: Supply Chain Security
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Generate SBOM
+        run: |
+          cargo install cargo-cyclonedx
+          cargo cyclonedx --format json --output sbom.json
+
+      - name: Upload SBOM
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom
+          path: sbom.json
+
+  security-policy:
+    name: Security Policy Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check for security policy
+        run: |
+          if [ ! -f SECURITY.md ]; then
+            echo "❌ SECURITY.md file missing"
+            echo "Please create a security policy file"
+            exit 1
+          fi
+          echo "✅ Security policy file exists"
+
+      - name: Validate security policy content
+        run: |
+          if ! grep -q "security@" SECURITY.md && ! grep -q "security issues" SECURITY.md; then
+            echo "❌ Security policy appears incomplete"
+            echo "Please ensure it includes contact information and reporting procedures"
+            exit 1
+          fi
+          echo "✅ Security policy appears complete"
+
+  vulnerability-management:
+    name: Vulnerability Management
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Update dependencies
+        run: |
+          cargo update
+          git diff --exit-code Cargo.lock || echo "Dependencies updated"
+
+      - name: Check for vulnerabilities
+        run: |
+          cargo install cargo-audit
+          cargo audit --db ./advisory-db --json > audit-report.json || true
+
+      - name: Create vulnerability report
+        run: |
+          echo "# Vulnerability Report - $(date)" > VULNERABILITY_REPORT.md
+          echo "" >> VULNERABILITY_REPORT.md
+          
+          if [ -s audit-report.json ]; then
+            echo "## Found vulnerabilities:" >> VULNERABILITY_REPORT.md
+            cat audit-report.json >> VULNERABILITY_REPORT.md
+          else
+            echo "## No vulnerabilities found ✅" >> VULNERABILITY_REPORT.md
+          fi
+
+      - name: Upload vulnerability report
+        uses: actions/upload-artifact@v4
+        with:
+          name: vulnerability-report
+          path: VULNERABILITY_REPORT.md
+
+  security-scorecard:
+    name: OpenSSF Scorecard
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      id-token: write
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - name: Run analysis
+        uses: ossf/scorecard-action@v2.3.1
+        with:
+          results_file: results.sarif
+          results_format: sarif
+          publish_results: true
+
+      - name: Upload to code-scanning
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: results.sarif

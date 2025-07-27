@@ -1,0 +1,75 @@
+{
+  "name": "MCP WASM Edge Gateway Development",
+  "dockerFile": "Dockerfile",
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "rust-analyzer.checkOnSave.command": "clippy",
+        "rust-analyzer.cargo.features": "all",
+        "rust-analyzer.procMacro.enable": true,
+        "editor.formatOnSave": true,
+        "editor.defaultFormatter": "rust-lang.rust-analyzer",
+        "files.watcherExclude": {
+          "**/target/**": true,
+          "**/.git/**": true
+        },
+        "search.exclude": {
+          "**/target": true,
+          "**/Cargo.lock": true
+        },
+        "terminal.integrated.defaultProfile.linux": "bash"
+      },
+      "extensions": [
+        "rust-lang.rust-analyzer",
+        "vadimcn.vscode-lldb",
+        "serayuzgur.crates",
+        "tamasfe.even-better-toml",
+        "ms-vscode.wasm-dwarf-debugging",
+        "ms-vscode.hexeditor",
+        "GitHub.copilot",
+        "GitHub.vscode-pull-request-github",
+        "ms-vscode.vscode-json",
+        "redhat.vscode-yaml"
+      ]
+    }
+  },
+  "forwardPorts": [8080, 9090, 3000],
+  "portsAttributes": {
+    "8080": {
+      "label": "MCP Gateway API",
+      "onAutoForward": "notify"
+    },
+    "9090": {
+      "label": "Prometheus Metrics",
+      "onAutoForward": "ignore"
+    },
+    "3000": {
+      "label": "Development Server",
+      "onAutoForward": "notify"
+    }
+  },
+  "postCreateCommand": "bash .devcontainer/setup.sh",
+  "features": {
+    "ghcr.io/devcontainers/features/rust:1": {
+      "version": "1.75",
+      "profile": "default"
+    },
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {},
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "20"
+    },
+    "ghcr.io/devcontainers/features/python:1": {
+      "version": "3.11"
+    }
+  },
+  "mounts": [
+    "source=${localWorkspaceFolder}/.cache,target=/workspace/.cache,type=bind",
+    "source=${localWorkspaceFolder}/target,target=/workspace/target,type=bind"
+  ],
+  "remoteUser": "vscode",
+  "containerEnv": {
+    "RUST_LOG": "debug",
+    "CARGO_TARGET_DIR": "/workspace/target",
+    "RUSTFLAGS": "-C target-cpu=native"
+  }
+}

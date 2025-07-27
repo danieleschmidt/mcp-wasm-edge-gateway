@@ -1,0 +1,91 @@
+{
+  "name": "mcp-wasm-edge-gateway",
+  "version": "0.1.0",
+  "description": "Ultra-lightweight Model Context Protocol gateway for edge devices",
+  "keywords": [
+    "mcp",
+    "edge-computing",
+    "wasm",
+    "rust",
+    "ai",
+    "iot",
+    "embedded"
+  ],
+  "homepage": "https://github.com/terragon-labs/mcp-wasm-edge-gateway",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/terragon-labs/mcp-wasm-edge-gateway.git"
+  },
+  "license": "Apache-2.0",
+  "scripts": {
+    "dev": "cargo watch -x 'run --bin mcp-gateway'",
+    "build": "cargo build --release",
+    "build:wasm": "wasm-pack build --target web --out-dir pkg",
+    "build:wasm-node": "wasm-pack build --target nodejs --out-dir pkg-node",
+    "build:all": "npm run build && npm run build:wasm && npm run build:wasm-node",
+    "test": "cargo test --workspace",
+    "test:wasm": "wasm-pack test --node",
+    "test:integration": "cargo test --package integration-tests",
+    "test:performance": "cargo bench",
+    "test:all": "npm run test && npm run test:wasm && npm run test:integration",
+    "lint": "cargo clippy --workspace --all-targets --all-features -- -D warnings",
+    "lint:fix": "cargo clippy --workspace --all-targets --all-features --fix --allow-dirty",
+    "format": "cargo fmt --all",
+    "format:check": "cargo fmt --all -- --check",
+    "clean": "cargo clean && rm -rf pkg pkg-node node_modules",
+    "audit": "cargo audit",
+    "outdated": "cargo outdated",
+    "bloat": "cargo bloat --release --crates",
+    "size": "twiggy top pkg/mcp_wasm_edge_gateway_bg.wasm",
+    "size:detailed": "twiggy dominators pkg/mcp_wasm_edge_gateway_bg.wasm",
+    "profile": "cargo build --release --bin mcp-gateway && perf record -g target/release/mcp-gateway",
+    "flamegraph": "cargo flamegraph --bin mcp-gateway",
+    "docs": "cargo doc --workspace --no-deps --open",
+    "docs:build": "cargo doc --workspace --no-deps",
+    "install:tools": "cargo install wasm-pack wasm-bindgen-cli cargo-watch cargo-audit cargo-outdated cargo-bloat twiggy flamegraph",
+    "setup": "npm run install:tools && rustup target add wasm32-wasi wasm32-unknown-unknown",
+    "cross:rpi": "cross build --target aarch64-unknown-linux-gnu --release",
+    "cross:esp32": "cargo build --target xtensa-esp32s3-none-elf --release",
+    "cross:windows": "cross build --target x86_64-pc-windows-gnu --release",
+    "cross:macos": "cross build --target aarch64-apple-darwin --release",
+    "docker:build": "docker build -t mcp-edge-gateway .",
+    "docker:run": "docker run -p 8080:8080 mcp-edge-gateway",
+    "docker:test": "docker build -f Dockerfile.test -t mcp-edge-gateway-test . && docker run mcp-edge-gateway-test",
+    "pre-commit": "npm run format && npm run lint && npm run test",
+    "prepare": "husky install",
+    "release:dry": "cargo release --dry-run",
+    "release:patch": "cargo release patch --execute",
+    "release:minor": "cargo release minor --execute",
+    "release:major": "cargo release major --execute",
+    "changelog": "git-cliff -o CHANGELOG.md",
+    "security": "cargo audit && npm audit",
+    "deps:update": "cargo update && npm update",
+    "bench": "cargo bench --workspace",
+    "ci": "npm run format:check && npm run lint && npm run test:all && npm run audit",
+    "serve": "cargo run --bin mcp-gateway -- --config ./config/development.toml",
+    "serve:release": "cargo run --release --bin mcp-gateway -- --config ./config/production.toml"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "husky": "^8.0.3",
+    "lint-staged": "^15.2.0"
+  },
+  "lint-staged": {
+    "*.rs": [
+      "cargo fmt --",
+      "cargo clippy --fix --allow-dirty --"
+    ],
+    "*.{js,ts,json,md}": [
+      "prettier --write"
+    ]
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  },
+  "browserslist": [
+    "last 2 versions",
+    "not dead",
+    "> 1%"
+  ]
+}

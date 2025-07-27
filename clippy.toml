@@ -1,0 +1,45 @@
+# Clippy configuration for MCP WASM Edge Gateway
+
+# Enable extra lints for better code quality
+avoid-breaking-exported-api = false
+cognitive-complexity-threshold = 30
+too-many-arguments-threshold = 8
+type-complexity-threshold = 250
+single-char-lifetime-names-threshold = 4
+trivial-copy-size-limit = 128
+
+# Allow certain lints that may be too restrictive for our use case
+allow-expect-in-tests = true
+allow-unwrap-in-tests = true
+allow-dbg-in-tests = true
+
+# Disable certain lints that may not be appropriate for embedded/WASM targets
+warn-on-all-wildcard-imports = false
+
+# Configure specific lint levels
+# These are additional to what's set in Cargo.toml
+
+# Performance-related lints (important for edge devices)
+# Enable by default, will be errors in CI
+performance = "warn"
+
+# Correctness lints (should always be errors)
+correctness = "deny"
+
+# Style lints (help maintain consistent code)
+style = "warn"
+
+# Complexity lints (prevent overly complex code)
+complexity = "warn"
+
+# Pedantic lints (very strict, but good for code quality)
+pedantic = "allow"  # Too strict by default, enable selectively
+
+# Restriction lints (prevent certain patterns)
+restriction = "allow"  # Enable selectively based on project needs
+
+# Cargo lints (for Cargo.toml issues)
+cargo = "warn"
+
+# Nursery lints (experimental, may have false positives)
+nursery = "allow"  # Too experimental for production use

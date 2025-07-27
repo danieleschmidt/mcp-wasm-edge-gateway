@@ -1,0 +1,70 @@
+# Rustfmt configuration for MCP WASM Edge Gateway
+
+# Use the 2021 edition formatting rules
+edition = "2021"
+
+# Basic formatting settings
+hard_tabs = false
+tab_spaces = 4
+max_width = 100
+newline_style = "Unix"
+
+# Import settings
+imports_granularity = "Module"
+imports_layout = "Vertical"
+group_imports = "StdExternalCrate"
+reorder_imports = true
+
+# Function and struct formatting
+fn_args_layout = "Tall"
+where_single_line = true
+struct_field_align_threshold = 0
+
+# Control flow formatting
+control_brace_style = "AlwaysSameLine"
+match_block_trailing_comma = true
+trailing_comma = "Vertical"
+trailing_semicolon = true
+
+# Comment and documentation settings
+format_code_in_doc_comments = true
+doc_comment_code_block_width = 80
+normalize_doc_attributes = true
+wrap_comments = true
+comment_width = 80
+
+# String and array formatting
+string_lit_normalize_whitespace = false
+array_width = 60
+chain_width = 60
+
+# Miscellaneous settings
+format_strings = false  # Avoid breaking embedded assembly or specific string formats
+format_macro_matchers = true
+format_macro_bodies = true
+hex_literal_case = "Preserve"
+
+# Unstable features (require nightly Rust)
+# These will be ignored on stable Rust
+# condense_wildcard_suffixes = true
+# format_generated_files = false
+# skip_children = false
+# hide_parse_errors = false
+
+# Formatting rules for consistency
+struct_lit_width = 0
+struct_lit_single_line = true
+enum_discrim_align_threshold = 0
+match_arm_blocks = true
+match_arm_leading_pipes = "Never"
+force_explicit_abi = true
+empty_item_single_line = true
+spaces_around_ranges = false
+binop_separator = "Front"
+remove_nested_parens = true
+combine_control_expr = true
+indent_style = "Block"
+use_small_heuristics = "Default"
+
+# Ordering and organization
+reorder_impl_items = false  # Keep manual ordering for logical grouping
