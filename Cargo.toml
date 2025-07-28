@@ -113,7 +113,7 @@ web-sys = { version = "0.3", features = [
 ] }
 
 # Memory management and collections
-lru = "0.12"
+lru = "0.16"
 dashmap = "5.5"
 
 # Math and ML utilities
