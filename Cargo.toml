@@ -62,7 +62,7 @@ base64 = "0.21"
 
 # Metrics and observability
 prometheus = { version = "0.13", features = ["process"] }
-opentelemetry = "0.21"
+opentelemetry = "0.30"
 opentelemetry-prometheus = "0.14"
 opentelemetry-otlp = { version = "0.14", features = ["tonic", "grpc-tonic"] }
 tracing = "0.1"
