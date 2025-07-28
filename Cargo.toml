@@ -61,7 +61,7 @@ lz4_flex = "0.11"
 base64 = "0.21"
 
 # Metrics and observability
-prometheus = { version = "0.13", features = ["process"] }
+prometheus = { version = "0.14", features = ["process"] }
 opentelemetry = "0.21"
 opentelemetry-prometheus = "0.14"
 opentelemetry-otlp = { version = "0.14", features = ["tonic", "grpc-tonic"] }
