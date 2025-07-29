@@ -1,0 +1,107 @@
+# Load testing configuration for Artillery.js
+# Run with: artillery run config/loadtest.yml
+
+config:
+  target: 'http://localhost:8080'
+  phases:
+    # Warm-up phase
+    - duration: 60
+      arrivalRate: 5
+      name: "Warm-up"
+    
+    # Ramp-up phase
+    - duration: 120
+      arrivalRate: 10
+      rampTo: 50
+      name: "Ramp-up load"
+    
+    # Sustained load phase
+    - duration: 300
+      arrivalRate: 50
+      name: "Sustained load"
+    
+    # Peak load phase
+    - duration: 120
+      arrivalRate: 50
+      rampTo: 100
+      name: "Peak load"
+    
+    # Cool-down phase
+    - duration: 60
+      arrivalRate: 100
+      rampTo: 10
+      name: "Cool-down"
+
+  defaults:
+    headers:
+      Content-Type: 'application/json'
+      User-Agent: 'MCP-LoadTest/1.0'
+
+  processor: "./config/loadtest-processor.js"
+
+  plugins:
+    metrics-by-endpoint:
+      useOnlyRequestNames: true
+    
+    hdrhistogram:
+      {}
+    
+    expect:
+      outputFormat: 'silent'
+
+scenarios:
+  # Health check endpoint
+  - name: "Health Check"
+    weight: 30
+    engine: http
+    flow:
+      - get:
+          url: "/health"
+          expect:
+            - statusCode: 200
+            - hasProperty: "status"
+            - equals: 
+                - "{{ status }}"
+                - "ok"
+
+  # Metrics endpoint
+  - name: "Metrics"
+    weight: 20
+    engine: http
+    flow:
+      - get:
+          url: "/metrics"
+          expect:
+            - statusCode: 200
+            - contentType: text/plain
+
+  # MCP completion requests
+  - name: "MCP Completion"
+    weight: 40
+    engine: http
+    flow:
+      - post:
+          url: "/v1/mcp/completions"
+          json:
+            messages:
+              - role: "user"
+                content: "{{ $randomString() }}"
+            max_tokens: 100
+            temperature: 0.7
+          capture:
+            - json: "$.id"
+              as: "completion_id"
+          expect:
+            - statusCode: 200
+            - hasProperty: "choices"
+
+  # Queue status checks
+  - name: "Queue Status"
+    weight: 10
+    engine: http
+    flow:
+      - get:
+          url: "/v1/queue/status"
+          expect:
+            - statusCode: 200
+            - hasProperty: "queue_size"
