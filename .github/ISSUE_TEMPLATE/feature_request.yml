@@ -1,59 +1,42 @@
-name: Feature Request
-description: Suggest an idea for this project
-title: "[Feature]: "
-labels: ["enhancement", "triage"]
+name: ✨ Feature Request
+description: Suggest a new feature for MCP WASM Edge Gateway
+title: "[FEATURE]: "
+labels: ["enhancement", "needs-triage"]
 assignees:
   - terragon-labs/maintainers
 body:
   - type: markdown
     attributes:
       value: |
-        Thank you for suggesting a new feature!
-        
-        Before submitting, please check if a similar feature request already exists.
+        Thank you for suggesting a new feature! Please provide detailed information about your proposal.
 
-  - type: textarea
-    id: problem
+  - type: checkboxes
+    id: checklist
     attributes:
-      label: Problem Statement
-      description: Is your feature request related to a problem? Please describe.
-      placeholder: I'm always frustrated when...
-    validations:
-      required: true
-
-  - type: textarea
-    id: solution
-    attributes:
-      label: Proposed Solution
-      description: Describe the solution you'd like to see implemented.
-      placeholder: I would like to see...
-    validations:
-      required: true
-
-  - type: textarea
-    id: alternatives
-    attributes:
-      label: Alternatives Considered
-      description: Describe any alternative solutions or features you've considered.
-      placeholder: I have also considered...
-    validations:
-      required: false
+      label: Pre-submission Checklist
+      description: Please check the following before submitting
+      options:
+        - label: I have searched existing issues and discussions
+          required: true
+        - label: I have read the roadmap and this feature isn't already planned
+          required: true
+        - label: This feature aligns with the project's goals
+          required: true
 
   - type: dropdown
     id: category
     attributes:
       label: Feature Category
-      description: What category does this feature belong to?
+      description: What type of feature is this?
       options:
-        - Core Gateway
-        - MCP Protocol
-        - Security
-        - Performance
-        - Platform Support
+        - Performance Enhancement
+        - New Platform Support
+        - Security Improvement
         - Developer Experience
+        - Model/AI Integration
+        - Monitoring/Observability
+        - Configuration/Setup
         - Documentation
-        - Monitoring
-        - Configuration
         - Other
     validations:
       required: true
@@ -62,117 +45,109 @@ body:
     id: priority
     attributes:
       label: Priority
-      description: How important is this feature to you?
+      description: How important is this feature?
       options:
-        - Low - Nice to have
-        - Medium - Would be helpful
-        - High - Important for my use case
-        - Critical - Blocking my use case
+        - High - Critical for adoption
+        - Medium - Would significantly improve experience
+        - Low - Nice to have enhancement
     validations:
       required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem Statement
+      description: What problem does this feature solve?
+      placeholder: Describe the problem or limitation you're facing...
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed Solution
+      description: Describe your proposed solution in detail
+      placeholder: |
+        - What should the feature do?
+        - How should it work?
+        - What would the API/interface look like?
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternative Solutions
+      description: What other approaches have you considered?
+      placeholder: Describe alternative solutions you've considered...
+
+  - type: textarea
+    id: use_cases
+    attributes:
+      label: Use Cases
+      description: Provide specific use cases for this feature
+      placeholder: |
+        1. As a developer, I want to...
+        2. When deploying to edge devices...
+        3. For IoT applications...
+    validations:
+      required: true
+
+  - type: textarea
+    id: benefits
+    attributes:
+      label: Benefits
+      description: What are the expected benefits?
+      placeholder: |
+        - Performance improvements
+        - Reduced complexity
+        - Better security
+        - Wider platform support
+    validations:
+      required: true
+
+  - type: textarea
+    id: examples
+    attributes:
+      label: Examples
+      description: Provide code examples or mockups if applicable
+      placeholder: |
+        ```rust
+        // Example usage
+        let gateway = Gateway::new()
+            .with_new_feature(config)
+            .build()?;
+        ```
+      render: rust
+
+  - type: textarea
+    id: resources
+    attributes:
+      label: Related Resources
+      description: Links to related issues, discussions, or external resources
+      placeholder: |
+        - Related issue: #123
+        - Discussion: link
+        - Documentation: link
 
   - type: checkboxes
-    id: platforms
+    id: implementation
     attributes:
-      label: Target Platforms
-      description: Which platforms should this feature support?
+      label: Implementation Considerations
+      description: Technical considerations (check all that apply)
       options:
-        - label: Linux (x86_64)
-        - label: Linux (aarch64)
-        - label: Windows
-        - label: macOS
-        - label: Raspberry Pi
-        - label: ESP32
-        - label: Browser (WASM)
-        - label: Mobile (iOS/Android)
-        - label: All platforms
-
-  - type: textarea
-    id: use_case
-    attributes:
-      label: Use Case Description
-      description: |
-        Describe your specific use case and how this feature would help.
-        Be as detailed as possible.
-      placeholder: |
-        In my project, I need to...
-        This feature would help by...
-    validations:
-      required: true
-
-  - type: textarea
-    id: acceptance_criteria
-    attributes:
-      label: Acceptance Criteria
-      description: |
-        What would need to be true for this feature to be considered complete?
-        List specific, testable criteria.
-      placeholder: |
-        - [ ] Feature does X
-        - [ ] Feature handles Y scenario
-        - [ ] Documentation is updated
-        - [ ] Tests are included
-    validations:
-      required: false
-
-  - type: dropdown
-    id: breaking_change
-    attributes:
-      label: Breaking Change
-      description: Would this feature require breaking changes to the API?
-      options:
-        - "No - Backward compatible"
-        - "Yes - Breaking change required"
-        - "Unsure"
-    validations:
-      required: true
-
-  - type: textarea
-    id: implementation_ideas
-    attributes:
-      label: Implementation Ideas
-      description: |
-        Do you have any ideas about how this could be implemented?
-        Technical details, API design, etc.
-      placeholder: |
-        This could be implemented by...
-        API could look like...
-    validations:
-      required: false
+        - label: This feature requires breaking changes
+        - label: This feature affects WASM compatibility
+        - label: This feature impacts performance
+        - label: This feature requires new dependencies
+        - label: This feature needs documentation updates
 
   - type: checkboxes
     id: contribution
     attributes:
       label: Contribution
-      description: Are you interested in contributing to this feature?
+      description: Are you willing to help implement this feature?
       options:
-        - label: I would like to implement this feature
-        - label: I can help with testing
-        - label: I can help with documentation
-        - label: I can provide domain expertise
-
-  - type: checkboxes
-    id: terms
-    attributes:
-      label: Checklist
-      description: Please confirm the following
-      options:
-        - label: I have searched for existing feature requests
-          required: true
-        - label: I have provided a clear problem statement
-          required: true
-        - label: I have described the proposed solution
-          required: true
-        - label: This feature aligns with the project goals
-          required: true
-
-  - type: textarea
-    id: additional
-    attributes:
-      label: Additional Context
-      description: |
-        Add any other context about the feature request here.
-        Links to relevant resources, examples from other projects, etc.
-      placeholder: Additional information...
-    validations:
-      required: false
+        - label: I'm willing to submit a PR for this feature
+        - label: I can help with design/specification
+        - label: I can provide testing and feedback
