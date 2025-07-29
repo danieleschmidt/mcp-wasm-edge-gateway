@@ -1,0 +1,62 @@
+# Mutation testing configuration
+# https://mutants.rs/
+
+# Directories to test
+test_tool = "cargo"
+test_options = ["--workspace", "--all-features"]
+
+# What to mutate
+mutate_dirs = ["crates/*/src"]
+
+# Skip these patterns
+skip_files = [
+    "*/tests/*",
+    "*/benches/*", 
+    "*/examples/*",
+    "**/bin/**"
+]
+
+# Skip these functions (typically boilerplate)
+skip_functions = [
+    "main",
+    "fmt",
+    "clone", 
+    "eq",
+    "hash",
+    "default"
+]
+
+# Test timeout
+timeout = "300s"
+
+# Baseline timeout multiplier
+baseline_timeout_multiplier = 5
+
+# Exit codes to treat as success
+success_exit_codes = [0]
+
+# Skip tests that don't compile
+check_only = false
+
+# Output options
+output_in_dir = true
+print_caught = true
+print_unviable = false
+
+# Baseline run options
+baseline = true
+shuffle = true
+
+# Job parallelism (defaults to number of CPUs)
+jobs = 0
+
+# Additional test commands for different targets
+[[test_commands]]
+name = "wasm"
+command = "wasm-pack test --node -- --all-features"
+dir = "."
+
+[[test_commands]]
+name = "integration"
+command = "cargo test --package integration-tests"
+dir = "."
