@@ -6,71 +6,65 @@ updates:
     schedule:
       interval: "weekly"
       day: "monday"
-      time: "06:00"
+      time: "09:00"
     open-pull-requests-limit: 10
     reviewers:
       - "terragon-labs/maintainers"
     assignees:
-      - "terragon-labs/maintainers"
+      - "terragon-labs/security-team"
     commit-message:
       prefix: "deps"
       include: "scope"
     groups:
-      tokio:
-        patterns:
-          - "tokio*"
-      serde:
-        patterns:
-          - "serde*"
-      crypto:
+      security-updates:
         patterns:
           - "ring"
           - "rustls*"
           - "webpki*"
-      wasm:
+          - "x509*"
+        update-types:
+          - "security-update"
+      tokio-ecosystem:
+        patterns:
+          - "tokio*"
+          - "hyper*"
+          - "tower*"
+          - "axum*"
+      wasm-tooling:
         patterns:
           - "wasm-*"
           - "js-sys"
           - "web-sys"
-
-  # Node.js dependencies  
-  - package-ecosystem: "npm"
-    directory: "/"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-      time: "06:00"
-    open-pull-requests-limit: 5
-    reviewers:
-      - "terragon-labs/maintainers"
-    commit-message:
-      prefix: "deps"
-      include: "scope"
 
   # Docker dependencies
   - package-ecosystem: "docker"
     directory: "/"
     schedule:
       interval: "weekly"
-      day: "monday"
-      time: "06:00"
+      day: "tuesday"
+      time: "09:00"
     open-pull-requests-limit: 5
-    reviewers:
-      - "terragon-labs/maintainers"
-    commit-message:
-      prefix: "deps"
-      include: "scope"
 
-  # GitHub Actions dependencies
+  # GitHub Actions
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
-      day: "monday"
-      time: "06:00"
+      day: "wednesday"
+      time: "09:00"
     open-pull-requests-limit: 5
-    reviewers:
-      - "terragon-labs/maintainers"
     commit-message:
-      prefix: "deps"
+      prefix: "ci"
       include: "scope"
+
+  # NPM dependencies (for tooling)
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "thursday"
+      time: "09:00"
+    open-pull-requests-limit: 5
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
