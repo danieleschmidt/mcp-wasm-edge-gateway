@@ -1,0 +1,51 @@
+# CODEOWNERS for MCP WASM Edge Gateway
+# https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Global code owners
+* @terragon-labs/maintainers
+
+# Security-critical components
+/crates/mcp-security/ @terragon-labs/security-team @terragon-labs/maintainers
+/deny.toml @terragon-labs/security-team
+/SECURITY.md @terragon-labs/security-team
+/.github/workflows/security.yml @terragon-labs/security-team
+
+# Core gateway and routing
+/crates/mcp-gateway/ @terragon-labs/core-team @terragon-labs/maintainers
+/crates/mcp-router/ @terragon-labs/core-team @terragon-labs/maintainers
+
+# WASM and edge-specific code
+/crates/mcp-models/ @terragon-labs/wasm-team @terragon-labs/maintainers
+*.wasm @terragon-labs/wasm-team
+
+# Infrastructure and deployment
+/Dockerfile @terragon-labs/infrastructure-team @terragon-labs/maintainers
+/docker-compose.yml @terragon-labs/infrastructure-team @terragon-labs/maintainers
+/.github/workflows/ @terragon-labs/devops-team @terragon-labs/maintainers
+/scripts/ @terragon-labs/devops-team
+
+# Documentation
+/docs/ @terragon-labs/docs-team @terragon-labs/maintainers
+/README.md @terragon-labs/docs-team @terragon-labs/maintainers
+/CONTRIBUTING.md @terragon-labs/docs-team @terragon-labs/maintainers
+
+# Performance and monitoring
+/crates/mcp-telemetry/ @terragon-labs/observability-team @terragon-labs/maintainers
+/.github/workflows/performance.yml @terragon-labs/observability-team
+/.github/workflows/monitoring.yml @terragon-labs/observability-team
+
+# Configuration and build system
+/Cargo.toml @terragon-labs/maintainers
+/Justfile @terragon-labs/maintainers
+/package.json @terragon-labs/maintainers
+/rustfmt.toml @terragon-labs/maintainers
+/clippy.toml @terragon-labs/maintainers
+
+# Release management
+/CHANGELOG.md @terragon-labs/release-team @terragon-labs/maintainers
+/cliff.toml @terragon-labs/release-team
+/.github/workflows/release.yml @terragon-labs/release-team
+
+# Dependency management
+/Cargo.lock @terragon-labs/maintainers
+/.github/dependabot.yml @terragon-labs/maintainers

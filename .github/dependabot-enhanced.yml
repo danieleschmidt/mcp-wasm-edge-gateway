@@ -1,0 +1,147 @@
+version: 2
+updates:
+  # Security-critical Rust dependencies (daily)
+  - package-ecosystem: "cargo"
+    directory: "/"
+    schedule:
+      interval: "daily"
+      time: "06:00"
+    open-pull-requests-limit: 5
+    reviewers:
+      - "@terragon-labs/security-team"
+    assignees:
+      - "@terragon-labs/security-team"
+    labels:
+      - "security"
+      - "dependencies"
+      - "high-priority"
+    commit-message:
+      prefix: "security"
+      include: "scope"
+    allow:
+      - dependency-type: "direct"
+        update-type: "security"
+      - dependency-type: "indirect"
+        update-type: "security"
+
+  # Regular Rust dependencies - grouped by ecosystem
+  - package-ecosystem: "cargo"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+    open-pull-requests-limit: 8
+    reviewers:
+      - "@terragon-labs/maintainers"
+    assignees:
+      - "@terragon-labs/maintainers"
+    labels:
+      - "dependencies"
+      - "rust"
+    commit-message:
+      prefix: "deps"
+      include: "scope"
+    groups:
+      tokio-ecosystem:
+        patterns:
+          - "tokio*"
+          - "tower*"
+          - "hyper*"
+          - "axum*"
+        update-types:
+          - "minor"
+          - "patch"
+      
+      wasm-toolchain:
+        patterns:
+          - "wasm-*"
+          - "js-sys"
+          - "web-sys"
+          - "wasm-bindgen*"
+        update-types:
+          - "minor"
+          - "patch"
+      
+      crypto-security:
+        patterns:
+          - "ring"
+          - "rustls*"
+          - "webpki*"
+          - "x509-parser"
+        update-types:
+          - "patch"
+      
+      observability:
+        patterns:
+          - "prometheus*"
+          - "opentelemetry*"
+          - "tracing*"
+        update-types:
+          - "minor"
+          - "patch"
+
+  # GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "tuesday"
+      time: "10:00"
+    open-pull-requests-limit: 5
+    reviewers:
+      - "@terragon-labs/maintainers"
+    assignees:
+      - "@terragon-labs/maintainers"
+    labels:
+      - "ci-cd"
+      - "github-actions"
+    commit-message:
+      prefix: "ci"
+      include: "scope"
+    groups:
+      actions-ecosystem:
+        patterns:
+          - "actions/*"
+          - "github/*"
+        update-types:
+          - "minor"
+          - "patch"
+
+  # Docker dependencies
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "wednesday"
+      time: "09:00"
+    open-pull-requests-limit: 3
+    reviewers:
+      - "@terragon-labs/maintainers"
+    assignees:
+      - "@terragon-labs/maintainers"
+    labels:
+      - "docker"
+      - "containers"
+    commit-message:
+      prefix: "docker"
+      include: "scope"
+
+  # npm dependencies (for tooling)
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "thursday"
+      time: "09:00"
+    open-pull-requests-limit: 3
+    reviewers:
+      - "@terragon-labs/maintainers"
+    assignees:
+      - "@terragon-labs/maintainers"
+    labels:
+      - "javascript"
+      - "tooling"
+    commit-message:
+      prefix: "npm"
+      include: "scope"
