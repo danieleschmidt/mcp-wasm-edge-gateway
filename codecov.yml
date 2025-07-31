@@ -1,0 +1,92 @@
+# Codecov configuration for MCP WASM Edge Gateway
+# https://docs.codecov.com/docs/codecov-yaml
+
+coverage:
+  precision: 2
+  round: down
+  range: "80...100"
+  
+  status:
+    project:
+      default:
+        target: 85%
+        threshold: 2%
+        if_not_found: success
+        if_ci_failed: error
+    patch:
+      default:
+        target: 80%
+        threshold: 3%
+        if_not_found: success
+        if_ci_failed: error
+
+  # Individual crate coverage requirements
+  project:
+    gateway:
+      target: 90%
+      paths:
+        - "crates/mcp-gateway/"
+    router:
+      target: 85%
+      paths:
+        - "crates/mcp-router/"
+    security:
+      target: 95%
+      paths:
+        - "crates/mcp-security/"
+    models:
+      target: 80%
+      paths:
+        - "crates/mcp-models/"
+    telemetry:
+      target: 85%
+      paths:
+        - "crates/mcp-telemetry/"
+    queue:
+      target: 90%
+      paths:
+        - "crates/mcp-queue/"
+    common:
+      target: 90%
+      paths:
+        - "crates/mcp-common/"
+
+parsers:
+  gcov:
+    branch_detection:
+      conditional: yes
+      loop: yes
+      method: no
+      macro: no
+
+ignore:
+  - "target/"
+  - "tests/"
+  - "benches/"
+  - "examples/"
+  - "docs/"
+  - "scripts/"
+  - "*.py"
+  - "*.js"
+
+comment:
+  layout: "reach,diff,flags,tree"
+  behavior: default
+  require_changes: false
+  require_base: no
+  require_head: yes
+
+github_checks:
+  annotations: true
+
+flags:
+  unit:
+    paths:
+      - crates/*/src/
+  integration:
+    paths:
+      - tests/integration/
+  wasm:
+    paths:
+      - crates/*/src/
+    carryforward: true
