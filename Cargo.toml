@@ -46,7 +46,7 @@ axum = { version = "0.7", features = ["ws", "macros"] }
 
 # Cryptography and security
 ring = "0.17"
-rustls = { version = "0.21", features = ["dangerous_configuration"] }
+rustls = { version = "0.23", features = ["dangerous_configuration"] }
 rustls-native-certs = "0.6"
 webpki-roots = "0.25"
 x509-parser = "0.15"
