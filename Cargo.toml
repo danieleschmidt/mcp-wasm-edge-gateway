@@ -118,7 +118,7 @@ dashmap = "5.5"
 
 # Math and ML utilities
 ndarray = "0.15"
-rand = "0.8"
+rand = "0.9"
 
 # Platform-specific dependencies will be handled in individual crates
 
