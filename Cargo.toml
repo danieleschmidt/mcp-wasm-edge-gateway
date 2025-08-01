@@ -26,7 +26,7 @@ categories = ["web-programming", "embedded", "wasm", "api-bindings"]
 [workspace.dependencies]
 # Async runtime and utilities
 tokio = { version = "1.35", features = ["rt", "rt-multi-thread", "macros", "sync", "time", "fs", "io-util", "net"] }
-tokio-tungstenite = { version = "0.20", features = ["native-tls"] }
+tokio-tungstenite = { version = "0.27", features = ["native-tls"] }
 futures = "0.3"
 async-trait = "0.1"
 
