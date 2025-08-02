@@ -1,0 +1,187 @@
+[
+  {
+    "id": "test_simple_completion",
+    "type": "mcp_completion",
+    "request": {
+      "messages": [
+        {
+          "role": "user",
+          "content": "Hello, how are you?"
+        }
+      ],
+      "temperature": 0.7,
+      "max_tokens": 100,
+      "model": "test-model"
+    },
+    "expected_response": {
+      "success": true,
+      "response_time_ms_max": 1000,
+      "contains_text": "hello"
+    }
+  },
+  {
+    "id": "test_complex_completion",
+    "type": "mcp_completion",
+    "request": {
+      "messages": [
+        {
+          "role": "system",
+          "content": "You are a helpful AI assistant specialized in edge computing."
+        },
+        {
+          "role": "user",
+          "content": "Explain the benefits of edge AI in IoT devices in 50 words."
+        }
+      ],
+      "temperature": 0.3,
+      "max_tokens": 75,
+      "model": "test-model"
+    },
+    "expected_response": {
+      "success": true,
+      "response_time_ms_max": 2000,
+      "word_count_max": 60
+    }
+  },
+  {
+    "id": "test_streaming_completion",
+    "type": "mcp_completion_stream",
+    "request": {
+      "messages": [
+        {
+          "role": "user",
+          "content": "Count from 1 to 10"
+        }
+      ],
+      "stream": true,
+      "temperature": 0.1,
+      "model": "test-model"
+    },
+    "expected_response": {
+      "success": true,
+      "stream_events_min": 5,
+      "contains_numbers": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+    }
+  },
+  {
+    "id": "test_tool_usage",
+    "type": "mcp_completion_with_tools",
+    "request": {
+      "messages": [
+        {
+          "role": "user",
+          "content": "What's the current time?"
+        }
+      ],
+      "tools": [
+        {
+          "type": "function",
+          "function": {
+            "name": "get_current_time",
+            "description": "Get the current time",
+            "parameters": {
+              "type": "object",
+              "properties": {}
+            }
+          }
+        }
+      ],
+      "model": "test-model"
+    },
+    "expected_response": {
+      "success": true,
+      "tool_calls_count": 1,
+      "tool_name": "get_current_time"
+    }
+  },
+  {
+    "id": "test_large_context",
+    "type": "mcp_completion",
+    "request": {
+      "messages": [
+        {
+          "role": "user",
+          "content": "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum. Summarize this text in one sentence."
+        }
+      ],
+      "temperature": 0.5,
+      "max_tokens": 50,
+      "model": "test-model"
+    },
+    "expected_response": {
+      "success": true,
+      "response_time_ms_max": 3000,
+      "contains_text": "lorem ipsum"
+    }
+  },
+  {
+    "id": "test_error_handling",
+    "type": "mcp_completion",
+    "request": {
+      "messages": [
+        {
+          "role": "user",
+          "content": "This is a test message designed to trigger an error response for testing error handling capabilities."
+        }
+      ],
+      "temperature": 1.5,
+      "max_tokens": -1,
+      "model": "invalid-model"
+    },
+    "expected_response": {
+      "success": false,
+      "error_type": "invalid_parameters",
+      "error_message_contains": "invalid"
+    }
+  },
+  {
+    "id": "test_rate_limiting",
+    "type": "bulk_requests",
+    "requests_count": 10,
+    "concurrent": true,
+    "request_template": {
+      "messages": [
+        {
+          "role": "user",
+          "content": "Quick test message #{request_id}"
+        }
+      ],
+      "temperature": 0.1,
+      "max_tokens": 20,
+      "model": "test-model"
+    },
+    "expected_response": {
+      "success_rate_min": 0.8,
+      "average_response_time_ms_max": 5000,
+      "rate_limit_errors_expected": true
+    }
+  },
+  {
+    "id": "test_offline_queue",
+    "type": "offline_scenario",
+    "setup": {
+      "disable_network": true,
+      "queue_requests": 5
+    },
+    "requests": [
+      {
+        "messages": [
+          {
+            "role": "user",
+            "content": "This should be queued offline #{request_id}"
+          }
+        ],
+        "model": "test-model"
+      }
+    ],
+    "teardown": {
+      "restore_network": true,
+      "verify_queue_sync": true
+    },
+    "expected_response": {
+      "queued_requests": 5,
+      "synced_requests": 5,
+      "sync_time_ms_max": 10000
+    }
+  }
+]
