@@ -1,0 +1,28 @@
+{
+  "// NOTE": "Copy this file to .vscode/settings.json for optimal development experience",
+  "rust-analyzer.checkOnSave.command": "clippy",
+  "rust-analyzer.cargo.buildScripts.enable": true,
+  "rust-analyzer.procMacro.enable": true,
+  "rust-analyzer.cargo.features": "all",
+  "rust-analyzer.completion.autoimport.enable": true,
+  "rust-analyzer.hover.actions.references": true,
+  "rust-analyzer.inlayHints.enable": true,
+  "rust-analyzer.lens.enable": true,
+  "rust-analyzer.lens.implementations": true,
+  "rust-analyzer.lens.references": true,
+  "rust-analyzer.rustfmt.overrideCommand": ["rustfmt", "--edition", "2021"],
+  "files.watcherExclude": {
+    "**/target/**": true,
+    "**/.git/**": true,
+    "**/node_modules/**": true
+  },
+  "search.exclude": {
+    "**/target": true,
+    "**/node_modules": true,
+    "**/.git": true
+  },
+  "editor.formatOnSave": true,
+  "editor.rulers": [80, 100],
+  "files.trimTrailingWhitespace": true,
+  "files.insertFinalNewline": true
+}
