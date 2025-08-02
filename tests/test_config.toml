@@ -1,0 +1,67 @@
+# Test Configuration for MCP WASM Edge Gateway
+
+[test_environment]
+# Test database settings
+db_path = "/tmp/mcp_test.db"
+clean_db_between_tests = true
+
+# Test model settings
+use_mock_models = true
+mock_model_path = "./tests/fixtures/models"
+model_load_timeout_ms = 5000
+
+# Network settings for integration tests
+test_server_port = 18080
+test_metrics_port = 19090
+bind_to_localhost_only = true
+
+# Security settings for testing
+disable_tpm_in_tests = true
+use_test_certificates = true
+test_cert_path = "./tests/fixtures/certs"
+
+# Performance test settings
+performance_test_duration_seconds = 10
+max_concurrent_requests = 100
+request_timeout_ms = 1000
+
+[mock_services]
+# External service mocking
+enable_cloud_service_mock = true
+mock_cloud_latency_ms = 100
+mock_cloud_success_rate = 0.95
+
+# Hardware mocking
+mock_hardware_security = true
+mock_sensor_data = true
+simulate_low_memory = false
+
+[test_data]
+# Test data configuration
+fixtures_path = "./tests/fixtures"
+generate_test_data = true
+test_data_size = "small"  # small, medium, large
+
+# Sample requests
+sample_requests_file = "./tests/fixtures/sample_requests.json"
+stress_test_requests = 1000
+
+[logging]
+# Test logging configuration
+log_level = "debug"
+log_to_file = true
+log_file_path = "./tests/logs/test.log"
+capture_stdout = true
+
+[coverage]
+# Code coverage settings
+enable_coverage = true
+coverage_threshold = 80.0
+exclude_files = ["tests/", "benches/", "examples/"]
+
+[benchmarks]
+# Benchmark configuration
+run_benchmarks = false
+benchmark_iterations = 100
+warm_up_iterations = 10
+measurement_time_seconds = 5
