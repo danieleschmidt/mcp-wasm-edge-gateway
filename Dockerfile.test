@@ -1,0 +1,69 @@
+# Dockerfile for running tests in a controlled environment
+FROM rust:1.88-slim as test-builder
+
+# Install system dependencies for testing
+RUN apt-get update && apt-get install -y \
+    pkg-config \
+    libssl-dev \
+    libudev-dev \
+    curl \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install additional testing tools
+RUN cargo install cargo-tarpaulin cargo-audit cargo-outdated
+
+WORKDIR /app
+
+# Copy project files
+COPY . .
+
+# Run comprehensive test suite
+FROM test-builder as test-runner
+
+# Set test environment variables
+ENV RUST_LOG=debug
+ENV RUST_BACKTRACE=1
+ENV CARGO_TARGET_DIR=/tmp/target
+
+# Create test user
+RUN useradd -m -u 1000 testuser
+RUN chown -R testuser:testuser /app /tmp/target
+USER testuser
+
+# Run tests with coverage
+RUN cargo test --workspace --all-features
+RUN cargo test --workspace --all-features --release
+
+# Run integration tests
+RUN cargo test --test integration
+
+# Run benchmarks
+RUN cargo bench --no-run
+
+# Security audit
+RUN cargo audit
+
+# Check for outdated dependencies  
+RUN cargo outdated
+
+# Generate coverage report
+RUN cargo tarpaulin --out Html --output-dir coverage
+
+# Final test verification stage
+FROM alpine:3.19 as test-results
+
+RUN apk add --no-cache curl jq
+
+WORKDIR /results
+
+# Copy test artifacts
+COPY --from=test-runner /app/coverage/ ./coverage/
+COPY --from=test-runner /app/target/criterion/ ./benchmarks/
+
+# Create test summary
+RUN echo "Test execution completed successfully" > test-summary.txt
+RUN echo "Coverage report available in ./coverage/" >> test-summary.txt
+RUN echo "Benchmark results available in ./benchmarks/" >> test-summary.txt
+
+CMD ["cat", "test-summary.txt"]
