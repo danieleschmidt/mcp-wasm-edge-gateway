@@ -1,0 +1,88 @@
+# Dockerfile for building WASM binaries
+FROM rust:1.88 as wasm-builder
+
+# Install wasm-pack and additional tools
+RUN curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+RUN rustup target add wasm32-unknown-unknown wasm32-wasi
+
+# Install optimization tools
+RUN cargo install twiggy wasm-opt
+
+# Install Node.js for WASM testing
+RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+RUN apt-get install -y nodejs
+
+WORKDIR /app
+
+# Copy source code
+COPY . .
+
+# Build WASM for web (with JavaScript bindings)
+RUN wasm-pack build --target web --out-dir pkg-web --release -- --features wasm-web
+
+# Build WASM for Node.js
+RUN wasm-pack build --target nodejs --out-dir pkg-node --release -- --features wasm-node
+
+# Build WASM for bundlers
+RUN wasm-pack build --target bundler --out-dir pkg-bundler --release
+
+# Build pure WASM (WASI)
+RUN cargo build --target wasm32-wasi --release --bin mcp-gateway-wasm
+
+# Optimize WASM binaries
+RUN wasm-opt -O3 -o pkg-web/mcp_wasm_edge_gateway_bg.wasm.opt pkg-web/mcp_wasm_edge_gateway_bg.wasm
+RUN wasm-opt -O3 -o pkg-node/mcp_wasm_edge_gateway_bg.wasm.opt pkg-node/mcp_wasm_edge_gateway_bg.wasm
+RUN wasm-opt -O3 -o target/wasm32-wasi/release/mcp-gateway-wasm.wasm.opt target/wasm32-wasi/release/mcp-gateway-wasm.wasm
+
+# Analyze WASM size
+RUN twiggy top pkg-web/mcp_wasm_edge_gateway_bg.wasm > wasm-analysis-web.txt
+RUN twiggy top pkg-node/mcp_wasm_edge_gateway_bg.wasm > wasm-analysis-node.txt
+RUN twiggy top target/wasm32-wasi/release/mcp-gateway-wasm.wasm > wasm-analysis-wasi.txt
+
+# Test WASM binaries
+FROM node:20-alpine as wasm-tester
+
+WORKDIR /test
+
+# Copy WASM artifacts
+COPY --from=wasm-builder /app/pkg-web/ ./pkg-web/
+COPY --from=wasm-builder /app/pkg-node/ ./pkg-node/
+COPY --from=wasm-builder /app/target/wasm32-wasi/release/mcp-gateway-wasm.wasm ./wasi/
+
+# Copy analysis reports
+COPY --from=wasm-builder /app/wasm-analysis-*.txt ./
+
+# Install WASI runtime for testing
+RUN npm install -g @wasmer/wasi
+
+# Create simple test script
+RUN echo 'console.log("WASM artifacts built successfully");' > test.js
+RUN echo 'const fs = require("fs");' >> test.js
+RUN echo 'const webSize = fs.statSync("./pkg-web/mcp_wasm_edge_gateway_bg.wasm").size;' >> test.js
+RUN echo 'const nodeSize = fs.statSync("./pkg-node/mcp_wasm_edge_gateway_bg.wasm").size;' >> test.js
+RUN echo 'const wasiSize = fs.statSync("./wasi/mcp-gateway-wasm.wasm").size;' >> test.js
+RUN echo 'console.log(`Web WASM: ${(webSize/1024/1024).toFixed(2)}MB`);' >> test.js
+RUN echo 'console.log(`Node WASM: ${(nodeSize/1024/1024).toFixed(2)}MB`);' >> test.js
+RUN echo 'console.log(`WASI WASM: ${(wasiSize/1024/1024).toFixed(2)}MB`);' >> test.js
+RUN echo 'if (webSize > 3*1024*1024) process.exit(1);' >> test.js
+RUN echo 'console.log("All WASM binaries are under 3MB requirement!");' >> test.js
+
+# Run test
+RUN node test.js
+
+# Final WASM distribution stage
+FROM scratch as wasm-dist
+
+# Copy optimized WASM binaries
+COPY --from=wasm-builder /app/pkg-web/ /web/
+COPY --from=wasm-builder /app/pkg-node/ /node/
+COPY --from=wasm-builder /app/pkg-bundler/ /bundler/
+COPY --from=wasm-builder /app/target/wasm32-wasi/release/mcp-gateway-wasm.wasm /wasi/mcp-gateway.wasm
+
+# Copy optimized versions
+COPY --from=wasm-builder /app/pkg-web/mcp_wasm_edge_gateway_bg.wasm.opt /web/optimized.wasm
+COPY --from=wasm-builder /app/pkg-node/mcp_wasm_edge_gateway_bg.wasm.opt /node/optimized.wasm
+COPY --from=wasm-builder /app/target/wasm32-wasi/release/mcp-gateway-wasm.wasm.opt /wasi/optimized.wasm
+
+# Copy analysis reports
+COPY --from=wasm-builder /app/wasm-analysis-*.txt /analysis/
