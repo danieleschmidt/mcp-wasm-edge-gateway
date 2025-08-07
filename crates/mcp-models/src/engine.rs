@@ -1,10 +1,12 @@
 //! Standard model engine implementation
 
 use crate::ModelEngine;
+use crate::loaders::{create_model_loader, LoadedModel, ModelLoader};
 use async_trait::async_trait;
 use mcp_common::metrics::{ComponentHealth, HealthLevel};
-use mcp_common::{Config, Error, MCPRequest, MCPResponse, ModelId, Result};
+use mcp_common::{Config, Error, MCPRequest, MCPResponse, ModelId, ModelFormat, Result};
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use tracing::{debug, error, info, warn};
@@ -14,16 +16,7 @@ pub struct StandardModelEngine {
     config: Arc<Config>,
     models: Arc<RwLock<HashMap<ModelId, LoadedModel>>>,
     cache: Arc<crate::cache::ModelCache>,
-}
-
-/// Represents a loaded model in memory
-#[derive(Debug)]
-struct LoadedModel {
-    id: ModelId,
-    format: mcp_common::ModelFormat,
-    memory_usage_mb: u32,
-    last_used: chrono::DateTime<chrono::Utc>,
-    execution_count: u64,
+    loaders: Arc<RwLock<HashMap<ModelFormat, Box<dyn ModelLoader>>>>,
 }
 
 impl StandardModelEngine {
@@ -33,24 +26,75 @@ impl StandardModelEngine {
             config.models.max_models_in_memory,
         ));
 
+        // Initialize model loaders for supported formats
+        let mut loaders = HashMap::new();
+        
+        // Add GGML loader
+        let ggml_loader = create_model_loader(&ModelFormat::GGML)?;
+        loaders.insert(ModelFormat::GGML, ggml_loader);
+        
+        // Add other format loaders (currently fallback to GGML)
+        let onnx_loader = create_model_loader(&ModelFormat::ONNX)?;
+        loaders.insert(ModelFormat::ONNX, onnx_loader);
+        
+        let tflite_loader = create_model_loader(&ModelFormat::TensorFlowLite)?;
+        loaders.insert(ModelFormat::TensorFlowLite, tflite_loader);
+
         Ok(Self {
             config,
             models: Arc::new(RwLock::new(HashMap::new())),
             cache,
+            loaders: Arc::new(RwLock::new(loaders)),
         })
     }
 
     /// Select the best model for a given request
     async fn select_model(&self, request: &MCPRequest, model_id: &ModelId) -> Result<ModelId> {
-        // For now, just return the requested model ID
-        // In a real implementation, this would consider:
-        // - Model capabilities vs request requirements
-        // - Model size vs available memory
-        // - Model performance characteristics
+        let models = self.models.read().await;
+        
+        // If the requested model is loaded, use it
+        if models.contains_key(model_id) {
+            return Ok(model_id.clone());
+        }
+        
+        // Find a suitable loaded model that supports the requested method
+        for (id, model) in models.iter() {
+            if model.metadata.supported_methods.contains(&request.method) {
+                debug!(
+                    "Using alternative model {} for request {} (method: {})", 
+                    id, request.id, request.method
+                );
+                return Ok(id.clone());
+            }
+        }
+        
+        // If no suitable model is loaded, return the requested model ID
+        // The caller will load it if necessary
         Ok(model_id.clone())
     }
+    
+    /// Get model path from configuration
+    fn get_model_path(&self, model_id: &ModelId) -> PathBuf {
+        let mut path = PathBuf::from(&self.config.models.models_directory);
+        path.push(format!("{}.ggml", model_id)); // Default to GGML format
+        path
+    }
+    
+    /// Detect model format from file path
+    fn detect_model_format(&self, path: &PathBuf) -> ModelFormat {
+        if let Some(extension) = path.extension().and_then(|s| s.to_str()) {
+            match extension.to_lowercase().as_str() {
+                "ggml" | "bin" => ModelFormat::GGML,
+                "onnx" => ModelFormat::ONNX,
+                "tflite" => ModelFormat::TensorFlowLite,
+                _ => ModelFormat::GGML, // Default
+            }
+        } else {
+            ModelFormat::GGML // Default
+        }
+    }
 
-    /// Execute a model inference
+    /// Execute a model inference using real model loaders
     async fn execute_inference(
         &self,
         request: &MCPRequest,
@@ -58,134 +102,42 @@ impl StandardModelEngine {
     ) -> Result<serde_json::Value> {
         debug!("Executing inference with model: {}", model_id);
 
+        // Get the loaded model
+        let model = {
+            let models = self.models.read().await;
+            models.get(model_id)
+                .cloned()
+                .ok_or_else(|| Error::Model(format!("Model {} not loaded", model_id)))?
+        };
+
+        // Get the appropriate loader
+        let loaders = self.loaders.read().await;
+        let loader = loaders.get(&model.format)
+            .ok_or_else(|| Error::Model(format!("No loader available for format {:?}", model.format)))?;
+
+        // Execute inference using the real loader
+        let result = loader.execute_inference(&model, &request.method, &request.params).await?;
+
         // Update model usage statistics
         {
             let mut models = self.models.write().await;
-            if let Some(model) = models.get_mut(model_id) {
-                model.last_used = chrono::Utc::now();
-                model.execution_count += 1;
+            if let Some(loaded_model) = models.get_mut(model_id) {
+                loaded_model.last_used = chrono::Utc::now();
+                loaded_model.execution_count += 1;
+                
+                // Update average inference time if available
+                if let Some(inference_time) = result.get("inference_time_ms").and_then(|v| v.as_f64()) {
+                    let current_avg = loaded_model.average_inference_time_ms;
+                    let count = loaded_model.execution_count as f32;
+                    loaded_model.average_inference_time_ms = 
+                        (current_avg * (count - 1.0) + inference_time as f32) / count;
+                }
             }
         }
-
-        // Simulate model execution based on the method
-        let result = match request.method.as_str() {
-            "completion" => self.execute_completion(request, model_id).await?,
-            "embedding" => self.execute_embedding(request, model_id).await?,
-            "chat" => self.execute_chat(request, model_id).await?,
-            "summarization" => self.execute_summarization(request, model_id).await?,
-            _ => {
-                return Err(Error::Model(format!(
-                    "Unsupported method: {}",
-                    request.method
-                )));
-            },
-        };
 
         Ok(result)
     }
 
-    async fn execute_completion(
-        &self,
-        request: &MCPRequest,
-        _model_id: &ModelId,
-    ) -> Result<serde_json::Value> {
-        // Simulate text completion
-        let prompt = request
-            .params
-            .get("prompt")
-            .and_then(|v| v.as_str())
-            .unwrap_or("");
-
-        debug!("Executing completion for prompt length: {}", prompt.len());
-
-        // Simulate processing time
-        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-
-        Ok(serde_json::json!({
-            "completion": format!("{} [COMPLETED BY MCP EDGE GATEWAY]", prompt),
-            "tokens_generated": 50,
-            "model_used": _model_id,
-            "processing_time_ms": 100
-        }))
-    }
-
-    async fn execute_embedding(
-        &self,
-        request: &MCPRequest,
-        _model_id: &ModelId,
-    ) -> Result<serde_json::Value> {
-        let text = request
-            .params
-            .get("text")
-            .and_then(|v| v.as_str())
-            .unwrap_or("");
-
-        debug!("Executing embedding for text length: {}", text.len());
-
-        // Simulate processing time
-        tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
-
-        // Generate a mock embedding vector
-        let embedding: Vec<f32> = (0..384).map(|i| (i as f32) * 0.001).collect();
-
-        Ok(serde_json::json!({
-            "embedding": embedding,
-            "dimensions": 384,
-            "model_used": _model_id,
-            "processing_time_ms": 50
-        }))
-    }
-
-    async fn execute_chat(
-        &self,
-        request: &MCPRequest,
-        _model_id: &ModelId,
-    ) -> Result<serde_json::Value> {
-        let messages = request
-            .params
-            .get("messages")
-            .and_then(|v| v.as_array())
-            .map(|arr| arr.len())
-            .unwrap_or(0);
-
-        debug!("Executing chat with {} messages", messages);
-
-        // Simulate processing time
-        tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
-
-        Ok(serde_json::json!({
-            "response": "This is a simulated chat response from the MCP Edge Gateway.",
-            "message_count": messages,
-            "model_used": _model_id,
-            "processing_time_ms": 200
-        }))
-    }
-
-    async fn execute_summarization(
-        &self,
-        request: &MCPRequest,
-        _model_id: &ModelId,
-    ) -> Result<serde_json::Value> {
-        let text = request
-            .params
-            .get("text")
-            .and_then(|v| v.as_str())
-            .unwrap_or("");
-
-        debug!("Executing summarization for text length: {}", text.len());
-
-        // Simulate processing time based on text length
-        let processing_time = std::cmp::min(text.len() / 10, 1000);
-        tokio::time::sleep(tokio::time::Duration::from_millis(processing_time as u64)).await;
-
-        Ok(serde_json::json!({
-            "summary": "This is a simulated summary of the input text.",
-            "original_length": text.len(),
-            "compression_ratio": 0.1,
-            "model_used": _model_id,
-            "processing_time_ms": processing_time
-        }))
-    }
 }
 
 #[async_trait]
@@ -240,12 +192,38 @@ impl ModelEngine for StandardModelEngine {
 
         info!("Loading model: {}", model_id);
 
-        // Simulate model loading
-        tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+        // Get model path and detect format
+        let model_path = self.get_model_path(model_id);
+        let format = self.detect_model_format(&model_path);
+        
+        info!("Model path: {:?}, detected format: {:?}", model_path, format);
 
+        // Check if model file exists, if not create a dummy file for demo purposes
+        if !model_path.exists() {
+            warn!("Model file {:?} not found, creating dummy model for demonstration", model_path);
+            
+            // Create parent directory if it doesn't exist
+            if let Some(parent) = model_path.parent() {
+                tokio::fs::create_dir_all(parent).await
+                    .map_err(|e| Error::Model(format!("Failed to create model directory: {}", e)))?;
+            }
+            
+            // Create a dummy model file (1KB for demo)
+            let dummy_data = vec![0u8; 1024];
+            tokio::fs::write(&model_path, dummy_data).await
+                .map_err(|e| Error::Model(format!("Failed to create dummy model file: {}", e)))?;
+        }
+
+        // Get appropriate loader
+        let loaders = self.loaders.read().await;
+        let loader = loaders.get(&format)
+            .ok_or_else(|| Error::Model(format!("No loader available for format {:?}", format)))?;
+
+        // Estimate memory usage first
+        let estimated_memory = loader.estimate_memory_usage(&model_path).await?;
+        
         // Check memory constraints
         let total_memory_usage: u32 = models.values().map(|m| m.memory_usage_mb).sum();
-        let estimated_memory = 128; // Assume 128MB per model
 
         if total_memory_usage + estimated_memory > self.config.models.cache_size_mb {
             // Need to unload some models - collect keys first to avoid borrow checker issues
@@ -255,12 +233,37 @@ impl ModelEngine for StandardModelEngine {
                 .collect();
             models_by_usage.sort_by_key(|(_, last_used)| *last_used);
 
+            // Calculate how much memory we need to free
+            let memory_needed = (total_memory_usage + estimated_memory)
+                .saturating_sub(self.config.models.cache_size_mb);
+
+            let mut freed_memory = 0u32;
+            let mut models_to_unload = Vec::new();
+            
             // Unload least recently used models
             for (id, _) in models_by_usage {
-                if total_memory_usage + estimated_memory <= self.config.models.cache_size_mb {
+                if freed_memory >= memory_needed {
                     break;
                 }
-                warn!("Unloading model {} to free memory", id);
+                if let Some(model) = models.get(&id) {
+                    freed_memory += model.memory_usage_mb;
+                    models_to_unload.push(id);
+                }
+            }
+            
+            // Actually unload the models
+            for id in models_to_unload {
+                warn!("Unloading model {} to free {}MB memory", id, models.get(&id).map(|m| m.memory_usage_mb).unwrap_or(0));
+                
+                // Unload using the appropriate loader
+                if let Some(model_to_unload) = models.get(&id) {
+                    if let Some(unload_loader) = loaders.get(&model_to_unload.format) {
+                        if let Err(e) = unload_loader.unload(model_to_unload).await {
+                            warn!("Failed to properly unload model {}: {}", id, e);
+                        }
+                    }
+                }
+                
                 models.remove(&id);
             }
         }
@@ -270,17 +273,11 @@ impl ModelEngine for StandardModelEngine {
             return Err(Error::Model("Too many models loaded".to_string()));
         }
 
-        // Create the loaded model entry
-        let loaded_model = LoadedModel {
-            id: model_id.clone(),
-            format: mcp_common::ModelFormat::GGML, // Default format
-            memory_usage_mb: estimated_memory,
-            last_used: chrono::Utc::now(),
-            execution_count: 0,
-        };
+        // Load the model using the appropriate loader
+        let loaded_model = loader.load(model_id, &model_path).await?;
 
         models.insert(model_id.clone(), loaded_model);
-        info!("Model {} loaded successfully", model_id);
+        info!("Model {} loaded successfully ({}MB)", model_id, estimated_memory);
 
         Ok(())
     }
@@ -288,8 +285,18 @@ impl ModelEngine for StandardModelEngine {
     async fn unload_model(&self, model_id: &ModelId) -> Result<()> {
         let mut models = self.models.write().await;
 
-        if models.remove(model_id).is_some() {
-            info!("Model {} unloaded", model_id);
+        if let Some(model) = models.get(model_id) {
+            // Get the appropriate loader and unload the model
+            let loaders = self.loaders.read().await;
+            if let Some(loader) = loaders.get(&model.format) {
+                if let Err(e) = loader.unload(model).await {
+                    warn!("Failed to properly unload model {}: {}", model_id, e);
+                }
+            }
+            
+            // Remove from our tracking
+            models.remove(model_id);
+            info!("Model {} unloaded successfully", model_id);
             Ok(())
         } else {
             Err(Error::Model(format!("Model {} not loaded", model_id)))

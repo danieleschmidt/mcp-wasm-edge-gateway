@@ -132,7 +132,7 @@ pub struct ModelInfo {
 }
 
 /// Supported model formats
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Hash, Eq, PartialEq)]
 pub enum ModelFormat {
     GGML,
     ONNX,
