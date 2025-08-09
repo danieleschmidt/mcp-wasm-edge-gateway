@@ -150,3 +150,55 @@ pub struct DeviceStatus {
     pub current_load: PerformanceMetrics,
     pub health_score: f32,
 }
+
+/// Health status levels
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+pub enum HealthLevel {
+    Healthy,
+    Warning,
+    Critical,
+}
+
+/// Health status for individual components
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ComponentHealth {
+    pub status: HealthLevel,
+    pub message: String,
+    pub last_check: DateTime<Utc>,
+    pub metrics: HashMap<String, f64>,
+}
+
+/// Overall health status of the system
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HealthStatus {
+    pub overall_health: HealthLevel,
+    pub components: HashMap<String, ComponentHealth>,
+    pub last_check: DateTime<Utc>,
+    pub uptime_seconds: u64,
+}
+
+impl HealthStatus {
+    /// Calculate overall health based on component status
+    pub fn calculate_overall_health(&mut self) {
+        if self.components.values().any(|c| c.status == HealthLevel::Critical) {
+            self.overall_health = HealthLevel::Critical;
+        } else if self.components.values().any(|c| c.status == HealthLevel::Warning) {
+            self.overall_health = HealthLevel::Warning;
+        } else {
+            self.overall_health = HealthLevel::Healthy;
+        }
+    }
+}
+
+/// Aggregated metrics from all components
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AggregatedMetrics {
+    pub total_requests: u64,
+    pub success_rate: f32,
+    pub avg_latency_ms: f64,
+    pub memory_usage_mb: u32,
+    pub cpu_usage_percent: f32,
+    pub active_models: u32,
+    pub queue_size: u64,
+    pub timestamp: DateTime<Utc>,
+}
