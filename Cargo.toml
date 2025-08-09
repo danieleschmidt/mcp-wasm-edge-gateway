@@ -1,3 +1,26 @@
+[package]
+name = "mcp-wasm-edge-gateway"
+version = "0.1.0"
+edition = "2021"
+authors = ["Terragon Labs <hello@terragon.ai>"]
+license = "Apache-2.0"
+description = "Ultra-lightweight Model Context Protocol gateway for edge devices"
+repository = "https://github.com/terragon-labs/mcp-wasm-edge-gateway"
+
+[[bin]]
+name = "mcp-gateway"
+path = "src/main.rs"
+
+[dependencies]
+mcp-common = { path = "crates/mcp-common" }
+mcp-gateway = { path = "crates/mcp-gateway" }
+tokio = { workspace = true, features = ["full"] }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+anyhow = { workspace = true }
+serde_json.workspace = true
+chrono = { workspace = true, features = ["serde"] }
+
 [workspace]
 members = [
     "crates/mcp-gateway",

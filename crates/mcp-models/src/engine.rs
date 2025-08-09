@@ -116,7 +116,9 @@ impl StandardModelEngine {
             .ok_or_else(|| Error::Model(format!("No loader available for format {:?}", model.format)))?;
 
         // Execute inference using the real loader
-        let result = loader.execute_inference(&model, &request.method, &request.params).await?;
+        let params_value = serde_json::to_value(&request.params)
+            .map_err(|e| Error::Model(format!("Failed to serialize params: {}", e)))?;
+        let result = loader.execute_inference(&model, &request.method, &params_value).await?;
 
         // Update model usage statistics
         {

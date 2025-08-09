@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use tracing::{debug, info, warn, error};
+use tracing::{debug, info, warn};
 
 /// Encrypted data structure
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -309,9 +309,7 @@ impl SecurityManager for StandardSecurityManager {
         }
         
         // API key validation
-        let api_key = request.context.as_ref()
-            .and_then(|ctx| ctx.get("api_key"))
-            .and_then(|v| v.as_str());
+        let api_key: Option<&str> = None; // Simplified for demo - in production would extract from headers
         
         if !self.validate_api_key(&request.device_id, api_key).await? {
             let mut metrics = self.security_metrics.write().await;

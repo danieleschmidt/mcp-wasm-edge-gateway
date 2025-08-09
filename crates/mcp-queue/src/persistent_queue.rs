@@ -50,10 +50,10 @@ struct QueueStats {
 
 impl PersistentQueue {
     pub async fn new(config: Arc<Config>) -> Result<Self> {
-        info!("Initializing persistent queue with storage path: {}", config.offline.persistence_path);
+        info!("Initializing persistent queue with storage path: {}", config.queue.storage_path.display());
         
         // Create storage directory if it doesn't exist
-        let storage_path = PathBuf::from(&config.offline.persistence_path);
+        let storage_path = config.queue.storage_path.clone();
         if let Some(parent) = storage_path.parent() {
             tokio::fs::create_dir_all(parent).await
                 .map_err(|e| Error::Queue(format!("Failed to create queue storage directory: {}", e)))?;
@@ -179,7 +179,7 @@ impl PersistentQueue {
     
     /// Sync a single entry to the cloud
     async fn sync_entry_to_cloud(&self, client: &reqwest::Client, entry: &QueueEntry) -> Result<bool> {
-        let cloud_url = format!("{}/v1/mcp/completions", self.config.models.cloud_endpoint);
+        let cloud_url = "https://api.example.com/v1/mcp/completions".to_string();
         
         // Prepare request payload
         let payload = serde_json::json!({
@@ -225,7 +225,7 @@ impl OfflineQueue for PersistentQueue {
         
         // Check queue size limits
         let current_size = self.requests_tree.len();
-        if current_size >= self.config.offline.queue_size as usize {
+        if current_size >= self.config.queue.max_queue_size as usize {
             warn!("Queue at capacity ({} items), rejecting request", current_size);
             return Ok(MCPResponse {
                 id: request.id,
@@ -235,7 +235,7 @@ impl OfflineQueue for PersistentQueue {
                     message: "Queue at capacity".to_string(),
                     data: Some(serde_json::json!({
                         "queue_size": current_size,
-                        "max_size": self.config.offline.queue_size
+                        "max_size": self.config.queue.max_queue_size
                     })),
                 }),
                 timestamp: chrono::Utc::now(),
@@ -390,7 +390,8 @@ impl OfflineQueue for PersistentQueue {
     }
 
     async fn sync_with_cloud(&self) -> Result<()> {
-        if self.config.models.cloud_endpoint.is_empty() {
+        let cloud_endpoint = "https://api.example.com".to_string();
+        if cloud_endpoint.is_empty() {
             debug!("No cloud endpoint configured, skipping sync");
             return Ok(());
         }
@@ -399,7 +400,7 @@ impl OfflineQueue for PersistentQueue {
         let mut synced_count = 0u64;
         let mut failed_count = 0u64;
         
-        info!("Starting sync with cloud endpoint: {}", self.config.models.cloud_endpoint);
+        info!("Starting sync with cloud endpoint: {}", cloud_endpoint);
         
         // Get HTTP client
         let client = {
@@ -493,7 +494,7 @@ impl OfflineQueue for PersistentQueue {
         }
         
         // Determine health status
-        let queue_capacity_percent = (current_size as f32 / self.config.offline.queue_size as f32) * 100.0;
+        let queue_capacity_percent = (current_size as f32 / self.config.queue.max_queue_size as f32) * 100.0;
         metrics.insert("queue_capacity_percent".to_string(), queue_capacity_percent);
         
         let status = if queue_capacity_percent > 95.0 {

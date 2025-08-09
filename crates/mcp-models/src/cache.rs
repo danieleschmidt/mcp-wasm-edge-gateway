@@ -1,7 +1,5 @@
 //! Model cache implementation
 
-use std::collections::HashMap;
-
 /// Simple model cache implementation
 pub struct ModelCache {
     cache_size_mb: u32,
