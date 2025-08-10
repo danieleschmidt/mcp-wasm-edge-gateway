@@ -1,0 +1,219 @@
+# Prometheus configuration for MCP WASM Edge Gateway monitoring
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: 'mcp-edge-gateway'
+    environment: 'production'
+
+# Alertmanager configuration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+          - alertmanager:9093
+
+# Load alerting rules
+rule_files:
+  - "rules.yml"
+
+# Scrape configurations
+scrape_configs:
+  # MCP Gateway instances
+  - job_name: 'mcp-gateway'
+    static_configs:
+      - targets:
+        - 'mcp-gateway-1:9090'
+        - 'mcp-gateway-2:9091' 
+        - 'mcp-gateway-3:9092'
+    metrics_path: '/metrics'
+    scrape_interval: 15s
+    scrape_timeout: 10s
+    honor_labels: true
+    params:
+      format: ['prometheus']
+
+  # HAProxy load balancer metrics
+  - job_name: 'haproxy'
+    static_configs:
+      - targets:
+        - 'loadbalancer:9101'
+    metrics_path: '/metrics'
+    scrape_interval: 30s
+
+  # System metrics from node exporter
+  - job_name: 'node-exporter'
+    static_configs:
+      - targets:
+        - 'node-exporter:9100'
+    scrape_interval: 30s
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: node-exporter:9100
+
+  # Redis metrics
+  - job_name: 'redis'
+    static_configs:
+      - targets:
+        - 'redis:9121'  # Redis exporter if available
+    scrape_interval: 30s
+
+  # PostgreSQL metrics
+  - job_name: 'postgres'
+    static_configs:
+      - targets:
+        - 'postgres:9187'  # Postgres exporter if available
+    scrape_interval: 30s
+
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets:
+        - 'localhost:9090'
+    scrape_interval: 30s
+
+  # Custom application metrics
+  - job_name: 'mcp-custom-metrics'
+    static_configs:
+      - targets:
+        - 'mcp-gateway-1:8080'
+        - 'mcp-gateway-2:8080'
+        - 'mcp-gateway-3:8080'
+    metrics_path: '/api/v1/metrics'
+    scrape_interval: 30s
+    basic_auth:
+      username: 'prometheus'
+      password: 'monitoring_password'
+
+  # Health check metrics
+  - job_name: 'mcp-health'
+    static_configs:
+      - targets:
+        - 'mcp-gateway-1:8081'
+        - 'mcp-gateway-2:8082'
+        - 'mcp-gateway-3:8083'
+    metrics_path: '/health/metrics'
+    scrape_interval: 15s
+
+  # Security metrics
+  - job_name: 'mcp-security'
+    static_configs:
+      - targets:
+        - 'mcp-gateway-1:8080'
+        - 'mcp-gateway-2:8080'
+        - 'mcp-gateway-3:8080'
+    metrics_path: '/api/v1/security/metrics'
+    scrape_interval: 60s
+
+# Remote storage configuration (optional)
+remote_write:
+  - url: "${PROMETHEUS_REMOTE_WRITE_URL}"
+    headers:
+      Authorization: "Bearer ${PROMETHEUS_REMOTE_WRITE_TOKEN}"
+    queue_config:
+      max_samples_per_send: 10000
+      max_shards: 200
+      capacity: 2500
+
+# Storage configuration
+storage:
+  tsdb:
+    retention.time: 30d
+    retention.size: 10GB
+    wal-compression: true
+
+# Recording rules for efficient queries
+recording_rules:
+  # Request rate rules
+  - name: mcp_request_rates
+    rules:
+    - record: mcp:request_rate_5m
+      expr: rate(mcp_requests_total[5m])
+    
+    - record: mcp:request_rate_1h
+      expr: rate(mcp_requests_total[1h])
+    
+    - record: mcp:error_rate_5m  
+      expr: rate(mcp_requests_total{status=~"4..|5.."}[5m]) / rate(mcp_requests_total[5m])
+
+  # Latency percentiles
+  - name: mcp_latency_percentiles
+    rules:
+    - record: mcp:latency_p50
+      expr: histogram_quantile(0.5, rate(mcp_request_duration_seconds_bucket[5m]))
+      
+    - record: mcp:latency_p95
+      expr: histogram_quantile(0.95, rate(mcp_request_duration_seconds_bucket[5m]))
+      
+    - record: mcp:latency_p99
+      expr: histogram_quantile(0.99, rate(mcp_request_duration_seconds_bucket[5m]))
+
+  # Resource utilization
+  - name: mcp_resource_usage
+    rules:
+    - record: mcp:cpu_usage_avg
+      expr: avg(rate(node_cpu_seconds_total{mode!="idle"}[5m])) by (instance)
+      
+    - record: mcp:memory_usage_percent
+      expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100
+      
+    - record: mcp:disk_usage_percent
+      expr: (node_filesystem_size_bytes - node_filesystem_avail_bytes) / node_filesystem_size_bytes * 100
+
+  # Cache performance
+  - name: mcp_cache_metrics
+    rules:
+    - record: mcp:cache_hit_rate
+      expr: rate(mcp_cache_hits_total[5m]) / (rate(mcp_cache_hits_total[5m]) + rate(mcp_cache_misses_total[5m]))
+      
+    - record: mcp:cache_memory_usage
+      expr: mcp_cache_memory_bytes / mcp_cache_memory_limit_bytes
+
+  # Security metrics
+  - name: mcp_security_metrics
+    rules:
+    - record: mcp:blocked_requests_rate
+      expr: rate(mcp_security_blocked_requests_total[5m])
+      
+    - record: mcp:threat_detection_rate
+      expr: rate(mcp_security_threats_detected_total[5m])
+
+  # Model performance
+  - name: mcp_model_metrics
+    rules:
+    - record: mcp:model_inference_rate
+      expr: rate(mcp_model_inferences_total[5m])
+      
+    - record: mcp:model_error_rate
+      expr: rate(mcp_model_errors_total[5m]) / rate(mcp_model_inferences_total[5m])
+      
+    - record: mcp:ensemble_usage_rate
+      expr: rate(mcp_ensemble_requests_total[5m])
+
+  # Business metrics
+  - name: mcp_business_metrics
+    rules:
+    - record: mcp:active_devices
+      expr: count(up{job="mcp-gateway"} == 1)
+      
+    - record: mcp:total_throughput
+      expr: sum(rate(mcp_requests_total[5m]))
+      
+    - record: mcp:avg_response_time
+      expr: avg(mcp:latency_p50)
+
+# External label configuration for federation
+external_labels:
+  cluster: 'mcp-production'
+  region: '${DEPLOYMENT_REGION}'
+  datacenter: '${DATACENTER_ID}'
+  
+# Tracing configuration (optional)
+tracing:
+  endpoint: "jaeger:14268/api/traces"
+  sampling_fraction: 0.1

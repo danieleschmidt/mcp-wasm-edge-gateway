@@ -1,0 +1,281 @@
+# MCP WASM Edge Gateway Production Configuration
+# Optimized for high availability, security, and performance
+
+[gateway]
+# Server configuration
+bind_address = "0.0.0.0"
+port = 8080
+max_connections = 1000
+request_timeout_ms = 30000
+graceful_shutdown_timeout_ms = 30000
+
+# Cluster configuration
+cluster_mode = true
+instance_id = "${MCP_INSTANCE_ID}"
+cluster_discovery = "redis"
+heartbeat_interval_ms = 5000
+
+# Performance tuning
+worker_threads = 4
+max_blocking_threads = 16
+thread_stack_size_kb = 2048
+
+[models]
+# Model configuration
+local_model = "phi-3-mini-q4"
+model_path = "/app/models/"
+max_memory_mb = 1024
+max_models_in_memory = 5
+cache_size_mb = 512
+
+# Model loading
+preload_models = ["phi-3-mini-q4", "tinyllama-1.1b-q4"]
+lazy_loading = true
+model_warmup_enabled = true
+warmup_requests_per_model = 3
+
+# Ensemble configuration
+enable_ensembles = true
+default_ensemble_strategy = "adaptive"
+ensemble_timeout_ms = 15000
+min_ensemble_confidence = 0.8
+
+[router]
+# Routing strategy
+strategy = "hybrid"
+local_processing_threshold = 0.6
+cloud_fallback_enabled = true
+max_routing_attempts = 3
+
+# Hybrid routing weights
+[router.hybrid_weights]
+complexity = 0.4
+resource_usage = 0.3
+historical_performance = 0.3
+
+# Cloud endpoints
+[[router.cloud_endpoints]]
+url = "${MCP_CLOUD_ENDPOINT_1}"
+priority = 1
+timeout_ms = 10000
+retry_attempts = 2
+
+[[router.cloud_endpoints]]
+url = "${MCP_CLOUD_ENDPOINT_2}"
+priority = 2
+timeout_ms = 10000
+retry_attempts = 2
+
+[queue]
+# Offline queue configuration
+enabled = true
+max_queue_size = 10000
+persistence_enabled = true
+persistence_path = "/app/cache/queue"
+sync_interval_seconds = 60
+batch_size = 100
+compression = "zstd"
+
+# Queue policies
+max_retry_attempts = 3
+retry_backoff_ms = 1000
+max_age_hours = 24
+
+[security]
+# Authentication and authorization
+api_key_required = true
+device_registration_required = true
+jwt_secret = "${JWT_SECRET}"
+jwt_expiration_hours = 24
+
+# Rate limiting
+enable_rate_limiting = true
+requests_per_minute = 100
+requests_per_hour = 2000
+burst_size = 20
+
+# Threat detection
+enable_threat_detection = true
+block_suspicious_requests = true
+threat_score_threshold = 0.8
+ip_whitelist = ["10.0.0.0/8", "192.168.0.0/16", "172.16.0.0/12"]
+
+# Content safety
+enable_content_filtering = true
+max_request_size_kb = 1024
+scan_for_pii = true
+sanitize_outputs = true
+
+# Hardware security
+enable_hardware_security = true
+tpm_device = "/dev/tpm0"
+require_device_attestation = false  # Set to true if TPM available
+attestation_timeout_ms = 5000
+
+# Encryption
+enable_encryption = true
+encryption_algorithm = "AES-256-GCM"
+key_rotation_interval_hours = 168  # Weekly
+
+[telemetry]
+# Metrics collection
+enabled = true
+export_interval_seconds = 30
+batch_size = 1000
+compression_algorithm = "zstd"
+compression_threshold_bytes = 1024
+
+# Prometheus integration
+prometheus_enabled = true
+prometheus_endpoint = "/metrics"
+prometheus_port = 9090
+collect_detailed_metrics = true
+
+# OpenTelemetry configuration
+opentelemetry_enabled = true
+jaeger_endpoint = "http://jaeger:14268/api/traces"
+trace_sampling_ratio = 0.1
+span_max_attributes = 50
+
+# Log configuration
+log_level = "info"
+log_format = "json"
+log_file = "/app/logs/mcp-gateway.log"
+log_rotation_size_mb = 100
+log_retention_days = 30
+
+# Health monitoring
+health_check_enabled = true
+health_check_port = 8081
+health_check_path = "/health"
+deep_health_check_interval_seconds = 300
+
+[database]
+# Primary database (PostgreSQL)
+url = "${MCP_POSTGRES_URL}"
+max_connections = 20
+min_connections = 5
+connection_timeout_ms = 5000
+idle_timeout_seconds = 600
+max_lifetime_seconds = 3600
+
+# Connection pool settings
+acquire_timeout_ms = 30000
+slow_query_threshold_ms = 1000
+log_slow_queries = true
+
+# Migration settings
+auto_migrate = true
+migration_timeout_ms = 300000
+
+[redis]
+# Redis configuration for caching and session management
+url = "${MCP_REDIS_URL}"
+max_connections = 50
+connection_timeout_ms = 3000
+command_timeout_ms = 5000
+
+# Redis cluster settings (if using cluster)
+cluster_enabled = false
+read_from_replicas = true
+reconnect_on_failure = true
+max_retry_attempts = 3
+
+# Cache settings
+default_ttl_seconds = 3600
+max_value_size_mb = 10
+compression_enabled = true
+
+[platform]
+# Platform-specific settings
+target_arch = "x86_64"
+max_memory_mb = 2048
+max_cpu_cores = 4
+enable_simd = true
+optimize_for_latency = true
+
+# Power management (for edge devices)
+power_management_enabled = false
+low_power_threshold_percent = 20
+thermal_throttle_temperature = 70.0
+
+# Storage settings
+temp_dir = "/tmp/mcp"
+max_temp_size_mb = 1024
+cleanup_temp_on_startup = true
+
+[monitoring]
+# System monitoring
+cpu_usage_alert_threshold = 80.0
+memory_usage_alert_threshold = 85.0
+disk_usage_alert_threshold = 90.0
+network_error_rate_threshold = 0.05
+
+# Application monitoring
+request_latency_p99_threshold_ms = 5000
+error_rate_threshold = 0.01
+cache_hit_rate_threshold = 0.8
+queue_size_alert_threshold = 5000
+
+# Alerting
+enable_alerting = true
+alert_webhook_url = "${ALERT_WEBHOOK_URL}"
+alert_cooldown_minutes = 15
+critical_alert_repeat_minutes = 5
+
+[backup]
+# Backup configuration
+enabled = true
+schedule = "${BACKUP_SCHEDULE}"
+retention_days = 30
+compression = "zstd"
+
+# Storage backends
+[backup.s3]
+bucket = "${BACKUP_S3_BUCKET}"
+region = "${AWS_REGION}"
+access_key = "${AWS_ACCESS_KEY_ID}"
+secret_key = "${AWS_SECRET_ACCESS_KEY}"
+encryption = "AES256"
+
+[deployment]
+# Deployment metadata
+version = "0.1.0"
+build_timestamp = "${BUILD_TIMESTAMP}"
+git_commit = "${GIT_COMMIT}"
+environment = "production"
+
+# Feature flags
+[features]
+# Experimental features
+enable_model_quantization = true
+enable_dynamic_batching = true
+enable_request_deduplication = true
+enable_adaptive_timeout = true
+enable_smart_retry = true
+
+# Performance features
+enable_connection_pooling = true
+enable_keep_alive = true
+enable_compression = true
+enable_caching = true
+enable_prefetching = false  # Disabled in production by default
+
+# Security features
+enable_request_signing = true
+enable_response_validation = true
+enable_audit_logging = true
+enable_geo_blocking = false  # Configure as needed
+enable_ddos_protection = true
+
+# Edge optimizations
+enable_edge_cache = true
+enable_local_inference = true
+enable_model_sharing = false  # Disable sharing between instances
+enable_bandwidth_optimization = true
+
+# Development and debugging features (disabled in production)
+enable_debug_endpoints = false
+enable_profiling = false
+enable_request_logging = false  # Use structured logging instead
+enable_response_caching_debug = false

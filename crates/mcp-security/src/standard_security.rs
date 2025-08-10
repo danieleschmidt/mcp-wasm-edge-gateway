@@ -1,4 +1,4 @@
-//! Standard security manager implementation
+//! Advanced security manager with hardware security, anomaly detection, and threat intelligence
 
 use crate::SecurityManager;
 use async_trait::async_trait;
@@ -11,6 +11,114 @@ use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use tracing::{debug, info, warn};
+
+/// Advanced threat detection system
+#[derive(Debug)]
+pub struct ThreatDetectionSystem {
+    known_attack_patterns: Arc<RwLock<HashMap<String, AttackSignature>>>,
+    ip_reputation_cache: Arc<RwLock<HashMap<String, ReputationScore>>>,
+    geo_location_analyzer: GeoLocationAnalyzer,
+    behavioral_analyzer: BehavioralAnalyzer,
+}
+
+/// Attack signature for pattern matching
+#[derive(Debug, Clone)]
+struct AttackSignature {
+    name: String,
+    pattern: String,
+    severity: ThreatSeverity,
+    confidence: f32,
+    last_updated: chrono::DateTime<chrono::Utc>,
+}
+
+/// IP reputation scoring
+#[derive(Debug, Clone)]
+struct ReputationScore {
+    score: f32, // 0.0 = malicious, 1.0 = trusted
+    sources: Vec<String>,
+    last_updated: chrono::DateTime<chrono::Utc>,
+    confidence: f32,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+enum ThreatSeverity {
+    Low,
+    Medium,
+    High,
+    Critical,
+}
+
+/// Geographic location analysis for threat detection
+#[derive(Debug)]
+struct GeoLocationAnalyzer {
+    suspicious_countries: HashSet<String>,
+    allowed_regions: Option<HashSet<String>>,
+}
+
+/// Behavioral analysis for detecting anomalous requests
+#[derive(Debug)]
+struct BehavioralAnalyzer {
+    request_patterns: Arc<RwLock<HashMap<String, RequestPattern>>>,
+}
+
+#[derive(Debug, Clone)]
+struct RequestPattern {
+    device_id: String,
+    typical_request_rate: f32,
+    typical_methods: HashSet<String>,
+    typical_request_size: usize,
+    time_patterns: Vec<u8>, // Hour-based pattern (24 elements)
+}
+
+/// Hardware Security Module for secure key management
+#[derive(Debug)]
+pub struct HardwareSecurityModule {
+    tpm_available: bool,
+    secure_enclave_available: bool,
+    key_derivation_salt: [u8; 32],
+    device_attestation: Option<DeviceAttestation>,
+}
+
+#[derive(Debug, Clone)]
+struct DeviceAttestation {
+    device_id: String,
+    attestation_key: Vec<u8>,
+    platform_config_registers: HashMap<u8, Vec<u8>>,
+    boot_measurements: Vec<u8>,
+    verified: bool,
+}
+
+/// Anomaly detection system
+#[derive(Debug)]
+pub struct AnomalyDetector {
+    models: Arc<RwLock<HashMap<String, AnomalyModel>>>,
+    threshold_config: AnomalyThresholds,
+}
+
+#[derive(Debug, Clone)]
+struct AnomalyModel {
+    name: String,
+    baseline_metrics: BaselineMetrics,
+    sensitivity: f32,
+    last_training: chrono::DateTime<chrono::Utc>,
+}
+
+#[derive(Debug, Clone)]
+struct BaselineMetrics {
+    avg_request_rate: f32,
+    std_dev_request_rate: f32,
+    avg_response_time: f32,
+    std_dev_response_time: f32,
+    typical_error_rate: f32,
+}
+
+#[derive(Debug, Clone)]
+struct AnomalyThresholds {
+    request_rate_multiplier: f32,
+    response_time_multiplier: f32,
+    error_rate_threshold: f32,
+    confidence_threshold: f32,
+}
 
 /// Encrypted data structure
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -43,11 +151,14 @@ struct RateLimitInfo {
     hour_window_start: chrono::DateTime<chrono::Utc>,
 }
 
-/// Standard security manager implementation with real cryptography
+/// Advanced security manager with threat detection and hardware security
 pub struct StandardSecurityManager {
     config: Arc<Config>,
     encryption_key: LessSafeKey,
     rng: SystemRandom,
+    threat_detector: Arc<ThreatDetectionSystem>,
+    hardware_security: Arc<HardwareSecurityModule>,
+    anomaly_detector: Arc<AnomalyDetector>,
     devices: Arc<RwLock<HashMap<String, DeviceAuth>>>,
     rate_limits: Arc<RwLock<HashMap<String, RateLimitInfo>>>,
     blocked_devices: Arc<RwLock<HashSet<String>>>,
@@ -106,10 +217,18 @@ impl StandardSecurityManager {
         
         info!("Added demo device {} for development", device_id);
         
+        // Initialize advanced security components
+        let threat_detector = Arc::new(ThreatDetectionSystem::new().await?);
+        let hardware_security = Arc::new(HardwareSecurityModule::new().await?);
+        let anomaly_detector = Arc::new(AnomalyDetector::new().await?);
+
         Ok(Self {
             config,
             encryption_key,
             rng,
+            threat_detector,
+            hardware_security,
+            anomaly_detector,
             devices: Arc::new(RwLock::new(devices)),
             rate_limits: Arc::new(RwLock::new(HashMap::new())),
             blocked_devices: Arc::new(RwLock::new(HashSet::new())),

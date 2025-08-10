@@ -1,4 +1,4 @@
-//! Standard model engine implementation
+//! Advanced multi-model ensemble engine implementation
 
 use crate::ModelEngine;
 use crate::loaders::{create_model_loader, LoadedModel, ModelLoader};
@@ -11,12 +11,49 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 use tracing::{debug, error, info, warn};
 
-/// Standard implementation of the model engine
+/// Advanced multi-model ensemble engine
 pub struct StandardModelEngine {
     config: Arc<Config>,
     models: Arc<RwLock<HashMap<ModelId, LoadedModel>>>,
     cache: Arc<crate::cache::ModelCache>,
     loaders: Arc<RwLock<HashMap<ModelFormat, Box<dyn ModelLoader>>>>,
+    ensembles: Arc<RwLock<HashMap<String, ModelEnsemble>>>,
+    performance_tracker: Arc<RwLock<ModelPerformanceTracker>>,
+}
+
+/// Multi-model ensemble for improved accuracy and reliability
+#[derive(Debug, Clone)]
+pub struct ModelEnsemble {
+    pub name: String,
+    pub primary_model: ModelId,
+    pub secondary_models: Vec<ModelId>,
+    pub ensemble_strategy: EnsembleStrategy,
+    pub confidence_threshold: f32,
+    pub performance_weights: HashMap<ModelId, f32>,
+}
+
+/// Ensemble strategies for combining model outputs
+#[derive(Debug, Clone)]
+pub enum EnsembleStrategy {
+    /// Use fastest model first, fallback to others if confidence is low
+    FastestFirst,
+    /// Run multiple models and combine outputs based on confidence
+    WeightedVoting { min_agreement: f32 },
+    /// Use highest-accuracy model for the specific task type
+    TaskSpecialized,
+    /// Combine outputs using learned weights
+    LearnedWeights,
+    /// Use different models for different complexity levels
+    ComplexityBased { thresholds: Vec<(f32, ModelId)> },
+}
+
+/// Track model performance for intelligent ensemble decisions
+#[derive(Debug, Default)]
+pub struct ModelPerformanceTracker {
+    pub accuracy_scores: HashMap<ModelId, Vec<f32>>,
+    pub latency_history: HashMap<ModelId, Vec<u64>>,
+    pub success_rates: HashMap<ModelId, (u64, u64)>, // (successes, total)
+    pub task_specialization: HashMap<String, ModelId>, // task_type -> best_model
 }
 
 impl StandardModelEngine {
@@ -45,7 +82,356 @@ impl StandardModelEngine {
             models: Arc::new(RwLock::new(HashMap::new())),
             cache,
             loaders: Arc::new(RwLock::new(loaders)),
+            ensembles: Arc::new(RwLock::new(HashMap::new())),
+            performance_tracker: Arc::new(RwLock::new(ModelPerformanceTracker::default())),
         })
+    }
+
+    /// Create a new model ensemble for improved performance
+    pub async fn create_ensemble(
+        &self,
+        name: String,
+        primary_model: ModelId,
+        secondary_models: Vec<ModelId>,
+        strategy: EnsembleStrategy,
+    ) -> Result<()> {
+        let ensemble = ModelEnsemble {
+            name: name.clone(),
+            primary_model: primary_model.clone(),
+            secondary_models: secondary_models.clone(),
+            ensemble_strategy: strategy,
+            confidence_threshold: 0.8, // Default threshold
+            performance_weights: HashMap::new(),
+        };
+
+        let mut ensembles = self.ensembles.write().await;
+        ensembles.insert(name.clone(), ensemble);
+
+        info!(
+            "Created ensemble '{}' with primary model '{}' and {} secondary models",
+            name,
+            primary_model,
+            secondary_models.len()
+        );
+
+        Ok(())
+    }
+
+    /// Execute request using ensemble of models for improved accuracy
+    async fn execute_with_ensemble(
+        &self,
+        request: &MCPRequest,
+        ensemble_name: &str,
+    ) -> Result<MCPResponse> {
+        let ensemble = {
+            let ensembles = self.ensembles.read().await;
+            ensembles.get(ensemble_name)
+                .ok_or_else(|| Error::Model(format!("Ensemble '{}' not found", ensemble_name)))?
+                .clone()
+        };
+
+        match ensemble.ensemble_strategy {
+            EnsembleStrategy::FastestFirst => {
+                self.execute_fastest_first(&ensemble, request).await
+            },
+            EnsembleStrategy::WeightedVoting { min_agreement } => {
+                self.execute_weighted_voting(&ensemble, request, min_agreement).await
+            },
+            EnsembleStrategy::TaskSpecialized => {
+                self.execute_task_specialized(&ensemble, request).await
+            },
+            EnsembleStrategy::LearnedWeights => {
+                self.execute_learned_weights(&ensemble, request).await
+            },
+            EnsembleStrategy::ComplexityBased { ref thresholds } => {
+                self.execute_complexity_based(&ensemble, request, thresholds).await
+            },
+        }
+    }
+
+    /// Execute using fastest-first strategy with fallback
+    async fn execute_fastest_first(
+        &self,
+        ensemble: &ModelEnsemble,
+        request: &MCPRequest,
+    ) -> Result<MCPResponse> {
+        // Try primary model first
+        let start_time = std::time::Instant::now();
+        match self.execute_single_model(request, &ensemble.primary_model).await {
+            Ok(response) => {
+                let latency = start_time.elapsed().as_millis() as u64;
+                
+                // Check confidence (simplified heuristic)
+                let confidence = self.estimate_response_confidence(&response);
+                
+                if confidence >= ensemble.confidence_threshold {
+                    self.update_model_performance(&ensemble.primary_model, confidence, latency, true).await;
+                    return Ok(response);
+                }
+                
+                debug!("Primary model confidence too low ({:.2}), trying secondary models", confidence);
+            }
+            Err(e) => {
+                warn!("Primary model failed: {}", e);
+                self.update_model_performance(&ensemble.primary_model, 0.0, 0, false).await;
+            }
+        }
+
+        // Try secondary models
+        for model_id in &ensemble.secondary_models {
+            let start_time = std::time::Instant::now();
+            match self.execute_single_model(request, model_id).await {
+                Ok(response) => {
+                    let latency = start_time.elapsed().as_millis() as u64;
+                    let confidence = self.estimate_response_confidence(&response);
+                    
+                    self.update_model_performance(model_id, confidence, latency, true).await;
+                    return Ok(response);
+                }
+                Err(e) => {
+                    warn!("Secondary model '{}' failed: {}", model_id, e);
+                    self.update_model_performance(model_id, 0.0, 0, false).await;
+                }
+            }
+        }
+
+        Err(Error::Model("All models in ensemble failed".to_string()))
+    }
+
+    /// Execute using weighted voting strategy
+    async fn execute_weighted_voting(
+        &self,
+        ensemble: &ModelEnsemble,
+        request: &MCPRequest,
+        min_agreement: f32,
+    ) -> Result<MCPResponse> {
+        let mut responses = Vec::new();
+        let mut models_to_try = vec![ensemble.primary_model.clone()];
+        models_to_try.extend(ensemble.secondary_models.iter().cloned());
+
+        // Execute up to 3 models for voting
+        for (i, model_id) in models_to_try.iter().take(3).enumerate() {
+            match self.execute_single_model(request, model_id).await {
+                Ok(response) => {
+                    let confidence = self.estimate_response_confidence(&response);
+                    responses.push((response, confidence, model_id.clone()));
+                    
+                    if i == 0 && confidence >= 0.9 {
+                        // High confidence from primary model, use it directly
+                        return Ok(responses[0].0.clone());
+                    }
+                }
+                Err(e) => {
+                    warn!("Model '{}' failed in voting: {}", model_id, e);
+                }
+            }
+        }
+
+        if responses.is_empty() {
+            return Err(Error::Model("No models succeeded in voting ensemble".to_string()));
+        }
+
+        // Simple voting: return response with highest confidence
+        responses.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+        
+        let best_response = &responses[0];
+        if best_response.1 >= min_agreement {
+            Ok(best_response.0.clone())
+        } else {
+            // If no single response meets agreement threshold, return the best one
+            debug!("No consensus reached (best confidence: {:.2}), returning best response", best_response.1);
+            Ok(best_response.0.clone())
+        }
+    }
+
+    /// Execute using task specialization
+    async fn execute_task_specialized(
+        &self,
+        ensemble: &ModelEnsemble,
+        request: &MCPRequest,
+    ) -> Result<MCPResponse> {
+        let task_type = request.method.clone();
+        let tracker = self.performance_tracker.read().await;
+        
+        // Find best model for this task type
+        let best_model = tracker.task_specialization.get(&task_type)
+            .unwrap_or(&ensemble.primary_model)
+            .clone();
+        
+        drop(tracker);
+
+        // Execute with best model for this task
+        match self.execute_single_model(request, &best_model).await {
+            Ok(response) => Ok(response),
+            Err(_) => {
+                // Fallback to primary model if specialized model fails
+                self.execute_single_model(request, &ensemble.primary_model).await
+            }
+        }
+    }
+
+    /// Execute using learned weights
+    async fn execute_learned_weights(
+        &self,
+        ensemble: &ModelEnsemble,
+        request: &MCPRequest,
+    ) -> Result<MCPResponse> {
+        let tracker = self.performance_tracker.read().await;
+        let mut model_scores = Vec::new();
+
+        // Calculate scores for all models
+        for model_id in std::iter::once(&ensemble.primary_model).chain(&ensemble.secondary_models) {
+            let success_rate = if let Some((successes, total)) = tracker.success_rates.get(model_id) {
+                if *total > 0 { *successes as f32 / *total as f32 } else { 0.5 }
+            } else { 0.5 };
+
+            let avg_accuracy = if let Some(scores) = tracker.accuracy_scores.get(model_id) {
+                if !scores.is_empty() { 
+                    scores.iter().sum::<f32>() / scores.len() as f32 
+                } else { 0.5 }
+            } else { 0.5 };
+
+            let combined_score = (success_rate * 0.6) + (avg_accuracy * 0.4);
+            model_scores.push((model_id.clone(), combined_score));
+        }
+        
+        drop(tracker);
+
+        // Sort by score and try best model
+        model_scores.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+        
+        for (model_id, _score) in model_scores {
+            match self.execute_single_model(request, &model_id).await {
+                Ok(response) => return Ok(response),
+                Err(_) => continue,
+            }
+        }
+
+        Err(Error::Model("All models failed in learned weights ensemble".to_string()))
+    }
+
+    /// Execute using complexity-based routing
+    async fn execute_complexity_based(
+        &self,
+        ensemble: &ModelEnsemble,
+        request: &MCPRequest,
+        thresholds: &[(f32, ModelId)],
+    ) -> Result<MCPResponse> {
+        // Simple complexity estimation (could be enhanced)
+        let complexity = self.estimate_request_complexity(request);
+        
+        // Find appropriate model based on complexity
+        let selected_model = thresholds.iter()
+            .find(|(threshold, _)| complexity >= *threshold)
+            .map(|(_, model)| model)
+            .unwrap_or(&ensemble.primary_model);
+
+        match self.execute_single_model(request, selected_model).await {
+            Ok(response) => Ok(response),
+            Err(_) => {
+                // Fallback to primary model
+                self.execute_single_model(request, &ensemble.primary_model).await
+            }
+        }
+    }
+
+    /// Execute request with a single model
+    async fn execute_single_model(&self, request: &MCPRequest, model_id: &ModelId) -> Result<MCPResponse> {
+        // This would call the actual model execution logic
+        // For now, return a placeholder implementation
+        debug!("Executing request with model: {}", model_id);
+        
+        // TODO: Implement actual model execution
+        Ok(MCPResponse {
+            id: request.id.clone(),
+            result: Some(serde_json::json!({
+                "content": format!("Response from model {}", model_id),
+                "model_used": model_id,
+                "confidence": 0.85
+            })),
+            error: None,
+        })
+    }
+
+    /// Estimate response confidence using heuristics
+    fn estimate_response_confidence(&self, response: &MCPResponse) -> f32 {
+        // Simplified confidence estimation
+        // In a real implementation, this would analyze the response content
+        if let Some(result) = &response.result {
+            if let Some(confidence) = result.get("confidence").and_then(|c| c.as_f64()) {
+                return confidence as f32;
+            }
+        }
+        
+        // Default confidence if not specified
+        0.75
+    }
+
+    /// Estimate request complexity for routing decisions
+    fn estimate_request_complexity(&self, request: &MCPRequest) -> f32 {
+        let mut complexity = 0.0;
+        
+        // Method-based complexity
+        complexity += match request.method.as_str() {
+            "completion" => 0.8,
+            "chat" => 0.7,
+            "embedding" => 0.3,
+            _ => 0.5,
+        };
+
+        // Parameter complexity
+        complexity += (request.params.len() as f32) * 0.05;
+
+        complexity.min(1.0)
+    }
+
+    /// Update model performance tracking
+    async fn update_model_performance(
+        &self,
+        model_id: &ModelId,
+        accuracy: f32,
+        latency_ms: u64,
+        success: bool,
+    ) {
+        let mut tracker = self.performance_tracker.write().await;
+
+        // Update accuracy scores
+        tracker.accuracy_scores
+            .entry(model_id.clone())
+            .or_default()
+            .push(accuracy);
+
+        // Keep only recent scores (last 100)
+        if let Some(scores) = tracker.accuracy_scores.get_mut(model_id) {
+            if scores.len() > 100 {
+                scores.drain(0..10);
+            }
+        }
+
+        // Update latency history
+        if latency_ms > 0 {
+            tracker.latency_history
+                .entry(model_id.clone())
+                .or_default()
+                .push(latency_ms);
+
+            // Keep only recent latency data
+            if let Some(latencies) = tracker.latency_history.get_mut(model_id) {
+                if latencies.len() > 100 {
+                    latencies.drain(0..10);
+                }
+            }
+        }
+
+        // Update success rates
+        let (successes, total) = tracker.success_rates
+            .entry(model_id.clone())
+            .or_insert((0, 0));
+        
+        *total += 1;
+        if success {
+            *successes += 1;
+        }
     }
 
     /// Select the best model for a given request

@@ -1,0 +1,446 @@
+# Production Docker Compose for MCP WASM Edge Gateway
+# This configuration provides high availability, monitoring, and security
+version: '3.8'
+
+networks:
+  mcp-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+  monitoring:
+    driver: bridge
+
+volumes:
+  prometheus-data:
+  grafana-data:
+  redis-data:
+  mcp-logs:
+  mcp-cache:
+  mcp-models:
+  postgres-data:
+
+services:
+  # Main MCP Gateway instances (3 replicas for HA)
+  mcp-gateway-1:
+    build:
+      context: ../../
+      dockerfile: Dockerfile
+      target: production
+    container_name: mcp-gateway-1
+    hostname: mcp-gateway-1
+    restart: unless-stopped
+    environment:
+      - RUST_LOG=info
+      - MCP_CONFIG_PATH=/app/config/production.toml
+      - MCP_INSTANCE_ID=gateway-1
+      - MCP_CLUSTER_MODE=true
+      - MCP_REDIS_URL=redis://redis:6379
+      - MCP_POSTGRES_URL=postgresql://mcp_user:${POSTGRES_PASSWORD}@postgres:5432/mcp_db
+      - MCP_PROMETHEUS_PORT=9090
+      - MCP_HEALTH_CHECK_PORT=8081
+    ports:
+      - "8080:8080"   # Main API
+      - "9090:9090"   # Prometheus metrics
+      - "8081:8081"   # Health check
+    volumes:
+      - ./config:/app/config:ro
+      - mcp-logs:/app/logs
+      - mcp-cache:/app/cache
+      - mcp-models:/app/models
+    networks:
+      - mcp-network
+      - monitoring
+    depends_on:
+      - redis
+      - postgres
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '1.0'
+        reservations:
+          memory: 1G
+          cpus: '0.5'
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+
+  mcp-gateway-2:
+    build:
+      context: ../../
+      dockerfile: Dockerfile
+      target: production
+    container_name: mcp-gateway-2
+    hostname: mcp-gateway-2
+    restart: unless-stopped
+    environment:
+      - RUST_LOG=info
+      - MCP_CONFIG_PATH=/app/config/production.toml
+      - MCP_INSTANCE_ID=gateway-2
+      - MCP_CLUSTER_MODE=true
+      - MCP_REDIS_URL=redis://redis:6379
+      - MCP_POSTGRES_URL=postgresql://mcp_user:${POSTGRES_PASSWORD}@postgres:5432/mcp_db
+      - MCP_PROMETHEUS_PORT=9091
+      - MCP_HEALTH_CHECK_PORT=8082
+    ports:
+      - "8090:8080"   # Main API (different external port)
+      - "9091:9091"   # Prometheus metrics
+      - "8082:8082"   # Health check
+    volumes:
+      - ./config:/app/config:ro
+      - mcp-logs:/app/logs
+      - mcp-cache:/app/cache
+      - mcp-models:/app/models
+    networks:
+      - mcp-network
+      - monitoring
+    depends_on:
+      - redis
+      - postgres
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8082/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '1.0'
+        reservations:
+          memory: 1G
+          cpus: '0.5'
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+
+  mcp-gateway-3:
+    build:
+      context: ../../
+      dockerfile: Dockerfile
+      target: production
+    container_name: mcp-gateway-3
+    hostname: mcp-gateway-3
+    restart: unless-stopped
+    environment:
+      - RUST_LOG=info
+      - MCP_CONFIG_PATH=/app/config/production.toml
+      - MCP_INSTANCE_ID=gateway-3
+      - MCP_CLUSTER_MODE=true
+      - MCP_REDIS_URL=redis://redis:6379
+      - MCP_POSTGRES_URL=postgresql://mcp_user:${POSTGRES_PASSWORD}@postgres:5432/mcp_db
+      - MCP_PROMETHEUS_PORT=9092
+      - MCP_HEALTH_CHECK_PORT=8083
+    ports:
+      - "8100:8080"   # Main API (different external port)
+      - "9092:9092"   # Prometheus metrics
+      - "8083:8083"   # Health check
+    volumes:
+      - ./config:/app/config:ro
+      - mcp-logs:/app/logs
+      - mcp-cache:/app/cache
+      - mcp-models:/app/models
+    networks:
+      - mcp-network
+      - monitoring
+    depends_on:
+      - redis
+      - postgres
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8083/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '1.0'
+        reservations:
+          memory: 1G
+          cpus: '0.5'
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+
+  # Load Balancer (HAProxy)
+  loadbalancer:
+    image: haproxy:2.8-alpine
+    container_name: mcp-loadbalancer
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8404:8404"  # HAProxy stats
+    volumes:
+      - ./haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
+      - ./ssl:/etc/ssl/certs:ro
+    networks:
+      - mcp-network
+    depends_on:
+      - mcp-gateway-1
+      - mcp-gateway-2
+      - mcp-gateway-3
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8404/stats"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Redis for caching and session management
+  redis:
+    image: redis:7-alpine
+    container_name: mcp-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+      - ./redis.conf:/usr/local/etc/redis/redis.conf:ro
+    command: redis-server /usr/local/etc/redis/redis.conf
+    networks:
+      - mcp-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+    security_opt:
+      - no-new-privileges:true
+
+  # PostgreSQL for persistent data
+  postgres:
+    image: postgres:15-alpine
+    container_name: mcp-postgres
+    restart: unless-stopped
+    environment:
+      - POSTGRES_DB=mcp_db
+      - POSTGRES_USER=mcp_user
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_INITDB_ARGS=--auth-host=scram-sha-256
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
+    networks:
+      - mcp-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mcp_user -d mcp_db"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '0.5'
+    security_opt:
+      - no-new-privileges:true
+
+  # Prometheus for metrics collection
+  prometheus:
+    image: prom/prometheus:v2.47.0
+    container_name: mcp-prometheus
+    restart: unless-stopped
+    ports:
+      - "9093:9090"
+    volumes:
+      - prometheus-data:/prometheus
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus-rules.yml:/etc/prometheus/rules.yml:ro
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=30d'
+      - '--web.enable-lifecycle'
+      - '--web.enable-admin-api'
+    networks:
+      - monitoring
+    depends_on:
+      - mcp-gateway-1
+      - mcp-gateway-2
+      - mcp-gateway-3
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '0.5'
+
+  # Grafana for visualization
+  grafana:
+    image: grafana/grafana:10.1.0
+    container_name: mcp-grafana
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana-dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./grafana-datasources:/etc/grafana/provisioning/datasources:ro
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD}
+      - GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-simple-json-datasource
+    networks:
+      - monitoring
+    depends_on:
+      - prometheus
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.25'
+
+  # AlertManager for alerting
+  alertmanager:
+    image: prom/alertmanager:v0.26.0
+    container_name: mcp-alertmanager
+    restart: unless-stopped
+    ports:
+      - "9094:9093"
+    volumes:
+      - ./alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--storage.path=/alertmanager'
+      - '--web.external-url=http://localhost:9094'
+    networks:
+      - monitoring
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.1'
+
+  # Loki for log aggregation
+  loki:
+    image: grafana/loki:2.9.0
+    container_name: mcp-loki
+    restart: unless-stopped
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./loki-config.yml:/etc/loki/local-config.yaml:ro
+    command: -config.file=/etc/loki/local-config.yaml
+    networks:
+      - monitoring
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.25'
+
+  # Promtail for log collection
+  promtail:
+    image: grafana/promtail:2.9.0
+    container_name: mcp-promtail
+    restart: unless-stopped
+    volumes:
+      - ./promtail-config.yml:/etc/promtail/config.yml:ro
+      - mcp-logs:/var/log/mcp:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    command: -config.file=/etc/promtail/config.yml
+    networks:
+      - monitoring
+    depends_on:
+      - loki
+
+  # Node Exporter for system metrics
+  node-exporter:
+    image: prom/node-exporter:v1.6.1
+    container_name: mcp-node-exporter
+    restart: unless-stopped
+    ports:
+      - "9100:9100"
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.sysfs=/host/sys'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+    networks:
+      - monitoring
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: '0.1'
+
+  # Jaeger for distributed tracing
+  jaeger:
+    image: jaegertracing/all-in-one:1.49
+    container_name: mcp-jaeger
+    restart: unless-stopped
+    ports:
+      - "16686:16686"
+      - "14268:14268"
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+      - COLLECTOR_ZIPKIN_HOST_PORT=:9411
+    networks:
+      - monitoring
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.25'
+
+  # Backup service
+  backup:
+    build:
+      context: ./backup
+      dockerfile: Dockerfile
+    container_name: mcp-backup
+    restart: unless-stopped
+    environment:
+      - BACKUP_SCHEDULE=${BACKUP_SCHEDULE:-0 2 * * *}  # Daily at 2 AM
+      - POSTGRES_URL=postgresql://mcp_user:${POSTGRES_PASSWORD}@postgres:5432/mcp_db
+      - REDIS_URL=redis://redis:6379
+      - S3_BUCKET=${BACKUP_S3_BUCKET}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+    volumes:
+      - ./backup-scripts:/app/scripts:ro
+      - mcp-logs:/backup/logs:ro
+      - mcp-cache:/backup/cache:ro
+      - postgres-data:/backup/postgres:ro
+      - redis-data:/backup/redis:ro
+    networks:
+      - mcp-network
+    depends_on:
+      - postgres
+      - redis
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.1'
