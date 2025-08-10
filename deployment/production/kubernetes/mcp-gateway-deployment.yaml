@@ -1,0 +1,467 @@
+# Kubernetes deployment for MCP WASM Edge Gateway
+# Production-ready configuration with high availability and auto-scaling
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mcp-gateway
+  namespace: mcp-production
+  labels:
+    app: mcp-gateway
+    version: v0.1.0
+    component: gateway
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: mcp-gateway
+      component: gateway
+  template:
+    metadata:
+      labels:
+        app: mcp-gateway
+        component: gateway
+        version: v0.1.0
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: mcp-gateway-service-account
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+      containers:
+      - name: mcp-gateway
+        image: mcp-gateway:v0.1.0-production
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8080
+          name: http
+          protocol: TCP
+        - containerPort: 9090
+          name: metrics
+          protocol: TCP
+        - containerPort: 8081
+          name: health
+          protocol: TCP
+        env:
+        - name: RUST_LOG
+          value: "info"
+        - name: MCP_CONFIG_PATH
+          value: "/app/config/production.toml"
+        - name: MCP_INSTANCE_ID
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: MCP_CLUSTER_MODE
+          value: "true"
+        - name: MCP_REDIS_URL
+          valueFrom:
+            secretKeyRef:
+              name: mcp-secrets
+              key: redis-url
+        - name: MCP_POSTGRES_URL
+          valueFrom:
+            secretKeyRef:
+              name: mcp-secrets
+              key: postgres-url
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: mcp-secrets
+              key: jwt-secret
+        - name: GRAFANA_ADMIN_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: mcp-secrets
+              key: grafana-admin-password
+        resources:
+          requests:
+            memory: "1Gi"
+            cpu: "500m"
+          limits:
+            memory: "2Gi"
+            cpu: "1000m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8081
+            scheme: HTTP
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          timeoutSeconds: 10
+          successThreshold: 1
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health/ready
+            port: 8081
+            scheme: HTTP
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+          successThreshold: 1
+          failureThreshold: 3
+        startupProbe:
+          httpGet:
+            path: /health/startup
+            port: 8081
+            scheme: HTTP
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          successThreshold: 1
+          failureThreshold: 30
+        volumeMounts:
+        - name: config-volume
+          mountPath: /app/config
+          readOnly: true
+        - name: models-volume
+          mountPath: /app/models
+        - name: cache-volume
+          mountPath: /app/cache
+        - name: logs-volume
+          mountPath: /app/logs
+        - name: tmp-volume
+          mountPath: /tmp
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          capabilities:
+            drop:
+            - ALL
+            add:
+            - NET_BIND_SERVICE
+      volumes:
+      - name: config-volume
+        configMap:
+          name: mcp-gateway-config
+      - name: models-volume
+        persistentVolumeClaim:
+          claimName: mcp-models-pvc
+      - name: cache-volume
+        emptyDir:
+          sizeLimit: 1Gi
+      - name: logs-volume
+        emptyDir:
+          sizeLimit: 500Mi
+      - name: tmp-volume
+        emptyDir:
+          sizeLimit: 100Mi
+      nodeSelector:
+        node-type: compute
+      tolerations:
+      - key: "dedicated"
+        operator: "Equal"
+        value: "mcp-gateway"
+        effect: "NoSchedule"
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - mcp-gateway
+              topologyKey: kubernetes.io/hostname
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: kubernetes.io/arch
+                operator: In
+                values:
+                - amd64
+              - key: node.kubernetes.io/instance-type
+                operator: NotIn
+                values:
+                - spot
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mcp-gateway-service
+  namespace: mcp-production
+  labels:
+    app: mcp-gateway
+    component: gateway
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+    service.beta.kubernetes.io/aws-load-balancer-cross-zone-load-balancing-enabled: "true"
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "9090"
+spec:
+  type: LoadBalancer
+  selector:
+    app: mcp-gateway
+    component: gateway
+  ports:
+  - name: http
+    port: 80
+    targetPort: 8080
+    protocol: TCP
+  - name: https
+    port: 443
+    targetPort: 8080
+    protocol: TCP
+  - name: metrics
+    port: 9090
+    targetPort: 9090
+    protocol: TCP
+  sessionAffinity: None
+  loadBalancerSourceRanges:
+  - 0.0.0.0/0  # Configure appropriately for production
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mcp-gateway-headless
+  namespace: mcp-production
+  labels:
+    app: mcp-gateway
+    component: gateway
+spec:
+  clusterIP: None
+  selector:
+    app: mcp-gateway
+    component: gateway
+  ports:
+  - name: http
+    port: 8080
+    targetPort: 8080
+  - name: metrics
+    port: 9090
+    targetPort: 9090
+  - name: health
+    port: 8081
+    targetPort: 8081
+
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: mcp-gateway-hpa
+  namespace: mcp-production
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: mcp-gateway
+  minReplicas: 3
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+  - type: Pods
+    pods:
+      metric:
+        name: mcp_requests_per_second
+      target:
+        type: AverageValue
+        averageValue: "100"
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+      - type: Percent
+        value: 50
+        periodSeconds: 60
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+      - type: Percent
+        value: 100
+        periodSeconds: 60
+      - type: Pods
+        value: 2
+        periodSeconds: 60
+
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: mcp-gateway-pdb
+  namespace: mcp-production
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: mcp-gateway
+      component: gateway
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mcp-gateway-config
+  namespace: mcp-production
+data:
+  production.toml: |
+    # MCP WASM Edge Gateway Kubernetes Production Configuration
+    
+    [gateway]
+    bind_address = "0.0.0.0"
+    port = 8080
+    max_connections = 1000
+    request_timeout_ms = 30000
+    
+    [models]
+    local_model = "phi-3-mini-q4"
+    model_path = "/app/models/"
+    max_memory_mb = 1024
+    cache_size_mb = 512
+    
+    [security]
+    api_key_required = true
+    enable_rate_limiting = true
+    requests_per_minute = 100
+    enable_threat_detection = true
+    
+    [telemetry]
+    enabled = true
+    prometheus_enabled = true
+    prometheus_port = 9090
+    log_level = "info"
+    log_format = "json"
+    
+    [database]
+    url = "${MCP_POSTGRES_URL}"
+    max_connections = 20
+    
+    [redis]
+    url = "${MCP_REDIS_URL}"
+    max_connections = 50
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: mcp-secrets
+  namespace: mcp-production
+type: Opaque
+data:
+  # Base64 encoded values - replace with actual secrets
+  redis-url: cmVkaXM6Ly9yZWRpcy1zZXJ2aWNlOjYzNzk=
+  postgres-url: cG9zdGdyZXNxbDovL21jcF91c2VyOnBhc3N3b3JkQHBvc3RncmVzLXNlcnZpY2U6NTQzMi9tY3BfZGI=
+  jwt-secret: c3VwZXJfc2VjdXJlX2p3dF9zZWNyZXRfa2V5XzEyMzQ1
+  grafana-admin-password: YWRtaW5fcGFzc3dvcmQ=
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mcp-models-pvc
+  namespace: mcp-production
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 10Gi
+  storageClassName: efs-sc  # Use appropriate storage class
+
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: mcp-gateway-network-policy
+  namespace: mcp-production
+spec:
+  podSelector:
+    matchLabels:
+      app: mcp-gateway
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: mcp-production
+    - namespaceSelector:
+        matchLabels:
+          name: monitoring
+    ports:
+    - protocol: TCP
+      port: 8080
+    - protocol: TCP
+      port: 9090
+    - protocol: TCP
+      port: 8081
+  egress:
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          name: mcp-production
+    ports:
+    - protocol: TCP
+      port: 5432  # PostgreSQL
+    - protocol: TCP
+      port: 6379  # Redis
+  - to: []  # Allow all outbound for external APIs
+    ports:
+    - protocol: TCP
+      port: 443
+    - protocol: TCP
+      port: 80
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: mcp-gateway-service-account
+  namespace: mcp-production
+automountServiceAccountToken: false
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  namespace: mcp-production
+  name: mcp-gateway-role
+rules:
+- apiGroups: [""]
+  resources: ["configmaps", "secrets"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "list"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: mcp-gateway-rolebinding
+  namespace: mcp-production
+subjects:
+- kind: ServiceAccount
+  name: mcp-gateway-service-account
+  namespace: mcp-production
+roleRef:
+  kind: Role
+  name: mcp-gateway-role
+  apiGroup: rbac.authorization.k8s.io

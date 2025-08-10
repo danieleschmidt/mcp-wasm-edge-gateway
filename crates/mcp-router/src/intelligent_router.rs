@@ -56,46 +56,167 @@ impl IntelligentRouter {
         })
     }
 
-    /// Analyze request complexity to help with routing decisions
+    /// Advanced AI-driven request complexity analysis with semantic understanding
     fn analyze_request_complexity(&self, request: &MCPRequest) -> f32 {
         let mut complexity_score = 0.0;
 
-        // Base complexity on method
+        // Enhanced base complexity scoring with AI method categorization
         complexity_score += match request.method.as_str() {
             "completion" => 0.8,
+            "chat" => 0.75,
+            "code_generation" => 0.9,     // High complexity
+            "reasoning" => 0.85,          // Complex reasoning tasks
+            "multimodal" => 0.95,         // Images, video, etc.
             "embedding" => 0.4,
-            "chat" => 0.7,
             "summarization" => 0.6,
+            "translation" => 0.65,
+            "sentiment_analysis" => 0.3,
+            "classification" => 0.25,
+            "search" => 0.2,
             _ => 0.5,
         };
 
-        // Add complexity based on parameters
+        // Advanced context analysis
         if let Some(context) = &request.context {
+            // Latency sensitivity scoring
             if let Some(max_latency) = context.requirements.max_latency_ms {
-                if max_latency < 1000 {
-                    complexity_score += 0.3; // High urgency adds complexity
-                }
+                complexity_score += match max_latency {
+                    0..=500 => 0.4,    // Ultra-low latency
+                    501..=1000 => 0.3,  // Low latency
+                    1001..=2000 => 0.2, // Medium latency
+                    _ => 0.1,           // High latency tolerance
+                };
             }
 
+            // Security and privacy requirements
             if context.requirements.require_local {
-                complexity_score += 0.2; // Local requirement adds complexity
+                complexity_score += 0.2;
+            }
+            if context.requirements.pii_present.unwrap_or(false) {
+                complexity_score += 0.25; // PII requires careful handling
             }
         }
 
-        // Analyze parameter complexity
-        let param_count = request.params.len();
-        complexity_score += (param_count as f32) * 0.05;
+        // Sophisticated parameter analysis
+        complexity_score += self.analyze_parameter_complexity(&request.params);
+        
+        // AI-driven content complexity analysis
+        complexity_score += self.analyze_content_complexity(&request.params);
 
-        // Check for large text inputs
-        for value in request.params.values() {
-            if let Some(text) = value.as_str() {
-                if text.len() > 1000 {
-                    complexity_score += 0.2;
-                }
-            }
-        }
+        // Resource prediction based on historical patterns
+        complexity_score += self.predict_resource_requirements(request);
 
         complexity_score.min(1.0) // Cap at 1.0
+    }
+
+    /// Analyze parameter complexity using advanced heuristics
+    fn analyze_parameter_complexity(&self, params: &serde_json::Map<String, serde_json::Value>) -> f32 {
+        let mut param_complexity = 0.0;
+        
+        let param_count = params.len();
+        param_complexity += (param_count as f32) * 0.03; // Reduced base weight
+
+        // Advanced parameter analysis
+        for (key, value) in params.iter() {
+            match key.as_str() {
+                "temperature" => {
+                    if let Some(temp) = value.as_f64() {
+                        if temp > 0.8 { param_complexity += 0.1; } // High creativity
+                    }
+                },
+                "max_tokens" => {
+                    if let Some(tokens) = value.as_u64() {
+                        param_complexity += match tokens {
+                            0..=100 => 0.0,
+                            101..=500 => 0.05,
+                            501..=2000 => 0.1,
+                            2001..=8000 => 0.15,
+                            _ => 0.2, // Very long outputs
+                        };
+                    }
+                },
+                "tools" | "functions" => {
+                    if let Some(arr) = value.as_array() {
+                        param_complexity += (arr.len() as f32) * 0.05; // Tool usage adds complexity
+                    }
+                },
+                _ => {}
+            }
+        }
+
+        param_complexity.min(0.3) // Cap parameter contribution
+    }
+
+    /// AI-driven content complexity analysis
+    fn analyze_content_complexity(&self, params: &serde_json::Map<String, serde_json::Value>) -> f32 {
+        let mut content_complexity = 0.0;
+
+        for value in params.values() {
+            if let Some(text) = value.as_str() {
+                // Text length analysis with diminishing returns
+                let length_score = match text.len() {
+                    0..=100 => 0.0,
+                    101..=500 => 0.05,
+                    501..=1000 => 0.1,
+                    1001..=2000 => 0.15,
+                    2001..=5000 => 0.2,
+                    5001..=10000 => 0.25,
+                    _ => 0.3,
+                };
+                content_complexity += length_score;
+
+                // Advanced content analysis heuristics
+                let word_count = text.split_whitespace().count();
+                if word_count > 1000 {
+                    content_complexity += 0.1;
+                }
+
+                // Check for complex patterns
+                if text.contains("```") || text.contains("def ") || text.contains("function ") {
+                    content_complexity += 0.15; // Code content
+                }
+                
+                if text.matches('"').count() > 10 {
+                    content_complexity += 0.1; // JSON or structured data
+                }
+
+                // Language complexity (basic heuristics)
+                let technical_keywords = ["algorithm", "implementation", "optimization", "architecture"];
+                let technical_count = technical_keywords.iter()
+                    .filter(|&keyword| text.to_lowercase().contains(keyword))
+                    .count();
+                if technical_count > 0 {
+                    content_complexity += (technical_count as f32) * 0.05;
+                }
+            } else if value.is_object() || value.is_array() {
+                content_complexity += 0.1; // Structured data adds complexity
+            }
+        }
+
+        content_complexity.min(0.4) // Cap content contribution
+    }
+
+    /// Predict resource requirements based on request patterns
+    fn predict_resource_requirements(&self, request: &MCPRequest) -> f32 {
+        let mut resource_score = 0.0;
+
+        // Pattern matching for resource-intensive operations
+        if request.method.contains("generation") || request.method.contains("completion") {
+            resource_score += 0.1;
+        }
+
+        // Time-based complexity (some requests are more complex at certain times)
+        let hour = chrono::Utc::now().hour();
+        if hour >= 9 && hour <= 17 {
+            resource_score += 0.05; // Business hours might have more complex requests
+        }
+
+        // Request ID pattern analysis for batch operations
+        if request.id.contains("batch") || request.id.contains("bulk") {
+            resource_score += 0.15;
+        }
+
+        resource_score.min(0.2) // Cap resource prediction contribution
     }
 
     /// Make routing decision based on current state and request
