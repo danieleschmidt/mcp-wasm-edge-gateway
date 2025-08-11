@@ -71,7 +71,7 @@ axum = { version = "0.7", features = ["ws", "macros"] }
 ring = "0.17"
 rustls = { version = "0.23", features = ["dangerous_configuration"] }
 rustls-native-certs = "0.6"
-webpki-roots = "0.25"
+webpki-roots = "1.0"
 x509-parser = "0.15"
 
 # Database and storage
