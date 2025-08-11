@@ -1,5 +1,5 @@
 # Dockerfile for running tests in a controlled environment
-FROM rust:1.88-slim as test-builder
+FROM rust:1.89-slim as test-builder
 
 # Install system dependencies for testing
 RUN apt-get update && apt-get install -y \
