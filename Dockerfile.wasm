@@ -1,5 +1,5 @@
 # Dockerfile for building WASM binaries
-FROM rust:1.88 as wasm-builder
+FROM rust:1.89 as wasm-builder
 
 # Install wasm-pack and additional tools
 RUN curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
