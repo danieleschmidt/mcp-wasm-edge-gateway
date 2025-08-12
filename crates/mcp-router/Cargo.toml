@@ -24,7 +24,6 @@ async-trait = { workspace = true }
 tracing = { workspace = true }
 uuid = { workspace = true }
 chrono = { workspace = true }
-dashmap = { workspace = true }
 reqwest = { workspace = true, optional = true }
 
 [features]

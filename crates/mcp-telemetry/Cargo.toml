@@ -24,8 +24,8 @@ async-trait = { workspace = true }
 tracing = { workspace = true }
 uuid = { workspace = true }
 chrono = { workspace = true }
-prometheus = { workspace = true, optional = true }
-opentelemetry = { workspace = true, optional = true }
+prometheus = { version = "0.13", optional = true }
+opentelemetry = { version = "0.20", optional = true }
 
 [features]
 default = ["prometheus"]

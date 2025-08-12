@@ -1,1 +1,123 @@
-Execution error
+[workspace]
+members = [
+    "crates/mcp-common",
+    "crates/mcp-gateway",
+    "crates/mcp-router",
+    "crates/mcp-models",
+    "crates/mcp-queue",
+    "crates/mcp-security",
+    "crates/mcp-telemetry",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.75"
+license = "Apache-2.0"
+authors = ["Terragon Labs <team@terragonlabs.com>"]
+repository = "https://github.com/terragonlabs/mcp-wasm-edge-gateway"
+homepage = "https://terragonlabs.com"
+documentation = "https://docs.rs/mcp-wasm-edge-gateway"
+keywords = ["mcp", "wasm", "edge", "ai", "gateway"]
+categories = ["wasm", "api-bindings", "embedded"]
+
+[workspace.dependencies]
+# Core async runtime
+tokio = { version = "1.0", features = ["full"] }
+
+# Web framework
+axum = "0.8"
+tower = "0.5"
+tower-http = { version = "0.6", features = ["cors", "trace", "timeout"] }
+hyper = "1.0"
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Error handling
+anyhow = "1.0"
+thiserror = "2.0"
+
+# Utilities
+uuid = { version = "1.0", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+parking_lot = "0.12"
+async-trait = "0.1"
+
+# Configuration
+config = "0.14"
+clap = { version = "4.0", features = ["derive"] }
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["json"] }
+
+# WASM support
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+js-sys = "0.3"
+web-sys = "0.3"
+
+# Database and storage
+sled = "0.34"
+bincode = "1.3"
+
+# HTTP client
+reqwest = { version = "0.11", features = ["json"] }
+
+# Cryptography
+ring = "0.17"
+base64 = "0.22"
+
+# Additional utilities
+lru = "0.12"
+
+[package]
+name = "mcp-wasm-edge-gateway"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+description = "Ultra-lightweight (<3MB) Model Context Protocol gateway for edge devices"
+keywords.workspace = true
+categories.workspace = true
+
+[[bin]]
+name = "mcp-gateway"
+path = "src/main.rs"
+
+[dependencies]
+mcp-common = { path = "crates/mcp-common" }
+mcp-gateway = { path = "crates/mcp-gateway" }
+
+tokio = { workspace = true }
+anyhow = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen = { workspace = true, optional = true }
+wasm-bindgen-futures = { workspace = true, optional = true }
+js-sys = { workspace = true, optional = true }
+web-sys = { workspace = true, optional = true }
+
+[features]
+default = ["native"]
+native = ["mcp-gateway/native"]
+wasm = ["mcp-gateway/wasm", "wasm-bindgen", "wasm-bindgen-futures", "js-sys", "web-sys"]
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
+
+[profile.wasm-release]
+inherits = "release"
+opt-level = "s"

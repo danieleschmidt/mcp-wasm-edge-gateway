@@ -217,10 +217,10 @@ impl StandardSecurityManager {
         
         info!("Added demo device {} for development", device_id);
         
-        // Initialize advanced security components
-        let threat_detector = Arc::new(ThreatDetectionSystem::new().await?);
-        let hardware_security = Arc::new(HardwareSecurityModule::new().await?);
-        let anomaly_detector = Arc::new(AnomalyDetector::new().await?);
+        // Initialize advanced security components  
+        let threat_detector = Arc::new(ThreatDetectionSystem::new().await);
+        let hardware_security = Arc::new(HardwareSecurityModule::new().await);
+        let anomaly_detector = Arc::new(AnomalyDetector::new().await);
 
         Ok(Self {
             config,
@@ -562,7 +562,6 @@ impl SecurityManager for StandardSecurityManager {
             HealthLevel::Healthy => format!("Security manager healthy ({:.1}% success rate)", success_rate),
             HealthLevel::Warning => format!("Security issues detected ({:.1}% success rate)", success_rate),
             HealthLevel::Critical => format!("Critical security issues ({:.1}% success rate)", success_rate),
-            HealthLevel::Unknown => "Security status unknown".to_string(),
         };
         
         Ok(ComponentHealth {
@@ -587,5 +586,46 @@ impl SecurityManager for StandardSecurityManager {
         
         info!("Security manager shutdown complete");
         Ok(())
+    }
+}
+
+impl ThreatDetectionSystem {
+    async fn new() -> Self {
+        Self {
+            known_attack_patterns: Arc::new(RwLock::new(HashMap::new())),
+            ip_reputation_cache: Arc::new(RwLock::new(HashMap::new())),
+            geo_location_analyzer: GeoLocationAnalyzer {
+                suspicious_countries: vec!["".to_string()].into_iter().collect(),
+                allowed_regions: None,
+            },
+            behavioral_analyzer: BehavioralAnalyzer {
+                request_patterns: Arc::new(RwLock::new(HashMap::new())),
+            },
+        }
+    }
+}
+
+impl HardwareSecurityModule {
+    async fn new() -> Self {
+        Self {
+            tpm_available: false,
+            secure_enclave_available: false,
+            key_derivation_salt: [0u8; 32],
+            device_attestation: None,
+        }
+    }
+}
+
+impl AnomalyDetector {
+    async fn new() -> Self {
+        Self {
+            models: Arc::new(RwLock::new(HashMap::new())),
+            threshold_config: AnomalyThresholds {
+                request_rate_multiplier: 3.0,
+                response_time_multiplier: 5.0,
+                error_rate_threshold: 0.1,
+                confidence_threshold: 0.8,
+            },
+        }
     }
 }

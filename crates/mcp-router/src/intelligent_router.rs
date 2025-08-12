@@ -465,7 +465,6 @@ impl Router for IntelligentRouter {
             HealthLevel::Healthy => "Router is operating normally".to_string(),
             HealthLevel::Warning => "Router is under high load".to_string(),
             HealthLevel::Critical => "Router is critically overloaded".to_string(),
-            HealthLevel::Unknown => "Router status unknown".to_string(),
         };
 
         Ok(ComponentHealth {

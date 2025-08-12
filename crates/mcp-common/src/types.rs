@@ -77,6 +77,7 @@ pub struct ProcessingRequirements {
     pub max_memory_mb: Option<u32>,
     pub require_local: bool,
     pub allow_fallback: bool,
+    pub pii_present: Option<bool>,
 }
 
 /// Routing decision for requests
