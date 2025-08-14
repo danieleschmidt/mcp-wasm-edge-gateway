@@ -17,7 +17,7 @@ async fn main() -> anyhow::Result<()> {
           config.gateway.bind_address, config.gateway.port);
 
     // Initialize gateway
-    let gateway = match Gateway::new(config.clone()).await {
+    let gateway = match Gateway::new((*config).clone()).await {
         Ok(g) => g,
         Err(e) => {
             error!("Failed to initialize gateway: {}", e);

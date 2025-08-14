@@ -26,6 +26,7 @@ uuid = { workspace = true }
 chrono = { workspace = true }
 lru = { workspace = true }
 parking_lot = { workspace = true }
+rand = "0.8"
 
 [features]
 default = []

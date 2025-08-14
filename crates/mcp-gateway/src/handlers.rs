@@ -1,12 +1,14 @@
 //! HTTP request handlers
 
-use crate::{AppState, Gateway};
+use crate::server::AppState;
 use axum::{
-    extract::{Json, State, WebSocketUpgrade},
+    extract::{Json, State, WebSocketUpgrade, ws::{WebSocket, Message}},
     http::StatusCode,
     response::{IntoResponse, Json as ResponseJson},
 };
+use futures_util::{StreamExt, SinkExt};
 use mcp_common::{HealthStatus, MCPRequest, MCPResponse};
+use mcp_common::metrics::HealthLevel;
 use serde_json::{json, Value};
 use tracing::{debug, error, info};
 use uuid::Uuid;
@@ -16,12 +18,12 @@ pub async fn health_check(State(gateway): State<AppState>) -> impl IntoResponse 
     match gateway.health_check().await {
         Ok(health) => {
             let status_code = match health.overall_health {
-                mcp_common::HealthLevel::Healthy => StatusCode::OK,
-                mcp_common::HealthLevel::Warning => StatusCode::OK,
-                mcp_common::HealthLevel::Critical => StatusCode::SERVICE_UNAVAILABLE,
-                mcp_common::HealthLevel::Unknown => StatusCode::SERVICE_UNAVAILABLE,
+                HealthLevel::Healthy => StatusCode::OK,
+                HealthLevel::Warning => StatusCode::OK,
+                HealthLevel::Critical => StatusCode::SERVICE_UNAVAILABLE,
+                HealthLevel::Unknown => StatusCode::SERVICE_UNAVAILABLE,
             };
-            (status_code, ResponseJson(health))
+            (status_code, ResponseJson(serde_json::to_value(health).unwrap()))
         },
         Err(e) => {
             error!("Health check failed: {}", e);
@@ -102,7 +104,7 @@ pub async fn prometheus_metrics(State(gateway): State<AppState>) -> impl IntoRes
 /// JSON metrics endpoint
 pub async fn json_metrics(State(gateway): State<AppState>) -> impl IntoResponse {
     match gateway.get_metrics().await {
-        Ok(metrics) => (StatusCode::OK, ResponseJson(metrics)),
+        Ok(metrics) => (StatusCode::OK, ResponseJson(serde_json::to_value(metrics).unwrap())),
         Err(e) => {
             error!("Failed to get metrics: {}", e);
             (
@@ -184,8 +186,7 @@ pub async fn websocket_handler(
 }
 
 async fn handle_websocket(socket: axum::extract::ws::WebSocket, gateway: AppState) {
-    use axum::extract::ws::{Message, WebSocket};
-    use futures::{sink::SinkExt, stream::StreamExt};
+    use axum::extract::ws::Message;
 
     let (mut sender, mut receiver) = socket.split();
 
@@ -206,7 +207,7 @@ async fn handle_websocket(socket: axum::extract::ws::WebSocket, gateway: AppStat
                                     r#"{"error":"Serialization failed"}"#.to_string()
                                 });
 
-                            if sender.send(Message::Text(response_text)).await.is_err() {
+                            if sender.send(Message::Text(response_text.into())).await.is_err() {
                                 break;
                             }
                         },
@@ -216,7 +217,7 @@ async fn handle_websocket(socket: axum::extract::ws::WebSocket, gateway: AppStat
                             });
 
                             if sender
-                                .send(Message::Text(error_response.to_string()))
+                                .send(Message::Text(error_response.to_string().into()))
                                 .await
                                 .is_err()
                             {
@@ -231,7 +232,7 @@ async fn handle_websocket(socket: axum::extract::ws::WebSocket, gateway: AppStat
                         });
 
                         if sender
-                            .send(Message::Text(error_response.to_string()))
+                            .send(Message::Text(error_response.to_string().into()))
                             .await
                             .is_err()
                         {
@@ -285,16 +286,16 @@ pub async fn version_info() -> impl IntoResponse {
         StatusCode::OK,
         ResponseJson(json!({
             "version": env!("CARGO_PKG_VERSION"),
-            "build_time": env!("VERGEN_BUILD_TIMESTAMP"),
-            "git_hash": env!("VERGEN_GIT_SHA"),
-            "rust_version": env!("VERGEN_RUSTC_SEMVER"),
-            "target": env!("VERGEN_CARGO_TARGET_TRIPLE")
+            "build_time": "unknown",
+            "git_hash": "unknown",
+            "rust_version": "unknown",
+            "target": "unknown"
         })),
     )
 }
 
 /// Convert metrics to Prometheus format
-fn format_metrics_as_prometheus(metrics: &mcp_common::AggregatedMetrics) -> String {
+fn format_metrics_as_prometheus(metrics: &mcp_common::metrics::AggregatedMetrics) -> String {
     let mut output = String::new();
 
     // System metrics

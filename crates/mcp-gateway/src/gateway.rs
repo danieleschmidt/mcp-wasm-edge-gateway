@@ -250,7 +250,7 @@ impl Gateway {
     }
 
     /// Get component metrics
-    pub async fn get_metrics(&self) -> Result<mcp_common::AggregatedMetrics> {
+    pub async fn get_metrics(&self) -> Result<mcp_common::metrics::AggregatedMetrics> {
         self.telemetry.get_aggregated_metrics().await
     }
 

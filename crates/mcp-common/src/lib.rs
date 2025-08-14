@@ -12,6 +12,7 @@ pub mod utils;
 pub use config::Config;
 pub use error::{Error, Result};
 pub use types::*;
+pub use metrics::{HealthLevel, ComponentHealth, HealthStatus};
 
 #[cfg(target_arch = "wasm32")]
 pub mod wasm;

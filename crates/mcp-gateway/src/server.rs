@@ -11,7 +11,7 @@ use axum::{
 use mcp_common::{Error, Result};
 use std::sync::Arc;
 use tower::ServiceBuilder;
-use tower_http::{compression::CompressionLayer, cors::CorsLayer, trace::TraceLayer};
+use tower_http::{cors::CorsLayer, trace::TraceLayer};
 use tracing::{error, info};
 
 /// HTTP server wrapper for the gateway
@@ -65,7 +65,6 @@ impl Server {
             .layer(
                 ServiceBuilder::new()
                     .layer(TraceLayer::new_for_http())
-                    .layer(CompressionLayer::new())
                     .layer(CorsLayer::permissive()) // TODO: Configure CORS properly
                     .layer(middleware::RequestIdLayer::new())
                     .layer(middleware::RateLimitLayer::new(100, 60)) // 100 requests per minute

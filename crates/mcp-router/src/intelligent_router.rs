@@ -8,6 +8,7 @@ use mcp_common::{Config, Error, MCPRequest, MCPResponse, Result, RoutingDecision
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
+use chrono::Timelike;
 use tracing::{debug, info};
 
 /// Intelligent router that makes routing decisions based on multiple factors
@@ -97,11 +98,16 @@ impl IntelligentRouter {
             }
         }
 
+        // Convert HashMap to serde_json::Map for analysis
+        let params_map: serde_json::Map<String, serde_json::Value> = request.params.iter()
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect();
+        
         // Sophisticated parameter analysis
-        complexity_score += self.analyze_parameter_complexity(&request.params);
+        complexity_score += self.analyze_parameter_complexity(&params_map);
         
         // AI-driven content complexity analysis
-        complexity_score += self.analyze_content_complexity(&request.params);
+        complexity_score += self.analyze_content_complexity(&params_map);
 
         // Resource prediction based on historical patterns
         complexity_score += self.predict_resource_requirements(request);
@@ -198,7 +204,7 @@ impl IntelligentRouter {
 
     /// Predict resource requirements based on request patterns
     fn predict_resource_requirements(&self, request: &MCPRequest) -> f32 {
-        let mut resource_score = 0.0;
+        let mut resource_score: f32 = 0.0;
 
         // Pattern matching for resource-intensive operations
         if request.method.contains("generation") || request.method.contains("completion") {
@@ -212,7 +218,8 @@ impl IntelligentRouter {
         }
 
         // Request ID pattern analysis for batch operations
-        if request.id.contains("batch") || request.id.contains("bulk") {
+        let id_str = request.id.to_string();
+        if id_str.contains("batch") || id_str.contains("bulk") {
             resource_score += 0.15;
         }
 
@@ -465,6 +472,7 @@ impl Router for IntelligentRouter {
             HealthLevel::Healthy => "Router is operating normally".to_string(),
             HealthLevel::Warning => "Router is under high load".to_string(),
             HealthLevel::Critical => "Router is critically overloaded".to_string(),
+            HealthLevel::Unknown => "Router status unknown".to_string(),
         };
 
         Ok(ComponentHealth {

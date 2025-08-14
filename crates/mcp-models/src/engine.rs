@@ -350,6 +350,7 @@ impl StandardModelEngine {
                 "confidence": 0.85
             })),
             error: None,
+            timestamp: chrono::Utc::now(),
         })
     }
 
@@ -721,6 +722,7 @@ impl ModelEngine for StandardModelEngine {
             HealthLevel::Healthy => "Model engine is operating normally".to_string(),
             HealthLevel::Warning => "Model engine memory usage is high".to_string(),
             HealthLevel::Critical => "Model engine is at capacity".to_string(),
+            HealthLevel::Unknown => "Model engine status unknown".to_string(),
         };
 
         Ok(ComponentHealth {
