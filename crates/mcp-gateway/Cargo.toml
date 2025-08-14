@@ -1,3 +1,4 @@
+```toml
 [package]
 name = "mcp-gateway"
 version.workspace = true
@@ -25,7 +26,7 @@ mcp-security = { path = "../mcp-security" }
 mcp-telemetry = { path = "../mcp-telemetry" }
 
 tokio = { workspace = true }
-axum = { workspace = true }
+axum = { workspace = true, features = ["ws"] }
 tower = { workspace = true }
 tower-http = { workspace = true }
 hyper = { workspace = true }
@@ -41,7 +42,7 @@ uuid = { workspace = true }
 chrono = { workspace = true }
 parking_lot = { workspace = true }
 async-trait = { workspace = true }
-futures = "0.3"
+futures-util = "0.3"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 wasm-bindgen = { workspace = true, optional = true }
@@ -53,3 +54,4 @@ web-sys = { workspace = true, optional = true }
 default = ["native"]
 native = ["tokio/rt-multi-thread", "tokio/net", "tokio/fs"]
 wasm = ["wasm-bindgen", "wasm-bindgen-futures", "js-sys", "web-sys"]
+```
