@@ -562,6 +562,7 @@ impl SecurityManager for StandardSecurityManager {
             HealthLevel::Healthy => format!("Security manager healthy ({:.1}% success rate)", success_rate),
             HealthLevel::Warning => format!("Security issues detected ({:.1}% success rate)", success_rate),
             HealthLevel::Critical => format!("Critical security issues ({:.1}% success rate)", success_rate),
+            HealthLevel::Unknown => format!("Security status unknown ({:.1}% success rate)", success_rate),
         };
         
         Ok(ComponentHealth {

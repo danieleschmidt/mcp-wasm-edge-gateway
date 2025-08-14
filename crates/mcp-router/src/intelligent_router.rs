@@ -2,6 +2,7 @@
 
 use crate::Router;
 use async_trait::async_trait;
+use chrono::Timelike;
 use mcp_common::config::RoutingStrategy;
 use mcp_common::metrics::{ComponentHealth, HealthLevel};
 use mcp_common::{Config, Error, MCPRequest, MCPResponse, Result, RoutingDecision};
@@ -110,7 +111,7 @@ impl IntelligentRouter {
     }
 
     /// Analyze parameter complexity using advanced heuristics
-    fn analyze_parameter_complexity(&self, params: &serde_json::Map<String, serde_json::Value>) -> f32 {
+    fn analyze_parameter_complexity(&self, params: &HashMap<String, serde_json::Value>) -> f32 {
         let mut param_complexity = 0.0;
         
         let param_count = params.len();
@@ -148,7 +149,7 @@ impl IntelligentRouter {
     }
 
     /// AI-driven content complexity analysis
-    fn analyze_content_complexity(&self, params: &serde_json::Map<String, serde_json::Value>) -> f32 {
+    fn analyze_content_complexity(&self, params: &HashMap<String, serde_json::Value>) -> f32 {
         let mut content_complexity = 0.0;
 
         for value in params.values() {
@@ -198,7 +199,7 @@ impl IntelligentRouter {
 
     /// Predict resource requirements based on request patterns
     fn predict_resource_requirements(&self, request: &MCPRequest) -> f32 {
-        let mut resource_score = 0.0;
+        let mut resource_score: f32 = 0.0;
 
         // Pattern matching for resource-intensive operations
         if request.method.contains("generation") || request.method.contains("completion") {
@@ -211,8 +212,9 @@ impl IntelligentRouter {
             resource_score += 0.05; // Business hours might have more complex requests
         }
 
-        // Request ID pattern analysis for batch operations
-        if request.id.contains("batch") || request.id.contains("bulk") {
+        // Request ID pattern analysis for batch operations (convert UUID to string)
+        let id_str = request.id.to_string();
+        if id_str.contains("batch") || id_str.contains("bulk") {
             resource_score += 0.15;
         }
 
@@ -465,6 +467,7 @@ impl Router for IntelligentRouter {
             HealthLevel::Healthy => "Router is operating normally".to_string(),
             HealthLevel::Warning => "Router is under high load".to_string(),
             HealthLevel::Critical => "Router is critically overloaded".to_string(),
+            HealthLevel::Unknown => "Router status unknown".to_string(),
         };
 
         Ok(ComponentHealth {

@@ -55,7 +55,7 @@ impl TelemetryCollector for StandardTelemetryCollector {
         metrics.failed_requests += 1;
     }
 
-    async fn get_aggregated_metrics(&self) -> Result<mcp_common::AggregatedMetrics> {
+    async fn get_aggregated_metrics(&self) -> Result<mcp_common::metrics::AggregatedMetrics> {
         let metrics = self.metrics.read().await;
 
         let avg_latency = if metrics.successful_requests > 0 {
@@ -70,15 +70,52 @@ impl TelemetryCollector for StandardTelemetryCollector {
             1.0
         };
 
-        Ok(mcp_common::AggregatedMetrics {
-            total_requests: metrics.total_requests,
-            success_rate,
-            avg_latency_ms: avg_latency,
-            memory_usage_mb: 256,
-            cpu_usage_percent: 25.0,
-            active_models: 1,
-            queue_size: 0,
+        Ok(mcp_common::metrics::AggregatedMetrics {
             timestamp: chrono::Utc::now(),
+            time_window_ms: 60000,
+            system: mcp_common::metrics::SystemMetrics {
+                timestamp: chrono::Utc::now(),
+                cpu_usage_percent: 25.0,
+                memory_usage_mb: 256,
+                memory_total_mb: 1024,
+                disk_usage_mb: 500,
+                network_rx_bytes: 1000,
+                network_tx_bytes: 800,
+                temperature_celsius: Some(45.0),
+                power_consumption_watts: Some(12.5),
+            },
+            requests: mcp_common::metrics::RequestAggregates {
+                total_requests: metrics.total_requests as u32,
+                successful_requests: metrics.successful_requests as u32,
+                failed_requests: metrics.failed_requests as u32,
+                avg_latency_ms: avg_latency as f32,
+                p95_latency_ms: avg_latency as f32 * 1.5,
+                p99_latency_ms: avg_latency as f32 * 2.0,
+                requests_per_second: metrics.total_requests as f32 / 60.0,
+                local_processing_ratio: 0.8,
+                cloud_fallback_ratio: 0.2,
+                queue_ratio: 0.1,
+            },
+            models: vec![],
+            queue: mcp_common::metrics::QueueMetrics {
+                queue_size: 0,
+                pending_requests: 0,
+                failed_requests: 0,
+                sync_attempts: 10,
+                sync_successes: 9,
+                avg_sync_time_ms: 150,
+                oldest_request_age_ms: 0,
+            },
+            security: mcp_common::metrics::SecurityMetrics {
+                authentication_attempts: 0,
+                authentication_failures: 0,
+                authorization_denials: 0,
+                encryption_operations: 0,
+                key_rotations: 0,
+                security_violations: 0,
+                audit_events: 0,
+            },
+            custom: std::collections::HashMap::new(),
         })
     }
 

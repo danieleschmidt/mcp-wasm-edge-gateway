@@ -509,6 +509,7 @@ impl OfflineQueue for PersistentQueue {
             HealthLevel::Healthy => format!("Queue healthy with {} items ({:.1}% capacity)", current_size, queue_capacity_percent),
             HealthLevel::Warning => format!("Queue at {:.1}% capacity with {} items", queue_capacity_percent, current_size),
             HealthLevel::Critical => format!("Queue near capacity: {} items ({:.1}%)", current_size, queue_capacity_percent),
+            HealthLevel::Unknown => format!("Queue status unknown with {} items", current_size),
         };
         
         Ok(ComponentHealth {

@@ -1,6 +1,7 @@
 //! Advanced intelligent model cache with predictive loading and optimization
 
 use mcp_common::{ModelId, Result, Error};
+use chrono::Timelike;
 use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
 use tokio::sync::RwLock;

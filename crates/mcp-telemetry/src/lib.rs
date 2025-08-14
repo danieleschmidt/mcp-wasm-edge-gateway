@@ -16,7 +16,7 @@ pub trait TelemetryCollector {
     async fn record_request_error(&self, request_id: Uuid, error: &Error);
 
     /// Get aggregated metrics
-    async fn get_aggregated_metrics(&self) -> Result<AggregatedMetrics>;
+    async fn get_aggregated_metrics(&self) -> Result<mcp_common::metrics::AggregatedMetrics>;
 
     /// Get health status
     async fn health_check(&self) -> Result<ComponentHealth>;
