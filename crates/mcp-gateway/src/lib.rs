@@ -10,7 +10,7 @@ pub mod middleware;
 pub mod server;
 
 pub use gateway::Gateway;
-pub use server::Server;
+pub use server::{AppState, Server};
 
 use mcp_common::{Error, Result};
 

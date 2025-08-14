@@ -41,6 +41,7 @@ uuid = { workspace = true }
 chrono = { workspace = true }
 parking_lot = { workspace = true }
 async-trait = { workspace = true }
+futures = "0.3"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 wasm-bindgen = { workspace = true, optional = true }

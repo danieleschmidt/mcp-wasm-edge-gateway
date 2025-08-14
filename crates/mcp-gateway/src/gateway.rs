@@ -1,6 +1,7 @@
 //! Core gateway implementation
 
 use mcp_common::{Config, Error, MCPRequest, MCPResponse, Result};
+use mcp_common::metrics::{ComponentHealth, HealthLevel};
 use mcp_models::ModelEngine;
 use mcp_queue::OfflineQueue;
 use mcp_router::Router;
@@ -160,7 +161,7 @@ impl Gateway {
         debug!("Performing health check");
 
         let mut health_status = mcp_common::HealthStatus {
-            overall_health: mcp_common::HealthLevel::Healthy,
+            overall_health: HealthLevel::Healthy,
             components: std::collections::HashMap::new(),
             last_check: chrono::Utc::now(),
             uptime_seconds: {
@@ -177,8 +178,8 @@ impl Gateway {
             self.router
                 .health_check()
                 .await
-                .unwrap_or_else(|_| mcp_common::ComponentHealth {
-                    status: mcp_common::HealthLevel::Critical,
+                .unwrap_or_else(|_| ComponentHealth {
+                    status: HealthLevel::Critical,
                     message: "Router health check failed".to_string(),
                     last_check: chrono::Utc::now(),
                     metrics: std::collections::HashMap::new(),
@@ -188,8 +189,8 @@ impl Gateway {
         health_status.components.insert(
             "model_engine".to_string(),
             self.model_engine.health_check().await.unwrap_or_else(|_| {
-                mcp_common::ComponentHealth {
-                    status: mcp_common::HealthLevel::Critical,
+                ComponentHealth {
+                    status: HealthLevel::Critical,
                     message: "Model engine health check failed".to_string(),
                     last_check: chrono::Utc::now(),
                     metrics: std::collections::HashMap::new(),
@@ -202,8 +203,8 @@ impl Gateway {
             self.queue
                 .health_check()
                 .await
-                .unwrap_or_else(|_| mcp_common::ComponentHealth {
-                    status: mcp_common::HealthLevel::Critical,
+                .unwrap_or_else(|_| ComponentHealth {
+                    status: HealthLevel::Critical,
                     message: "Queue health check failed".to_string(),
                     last_check: chrono::Utc::now(),
                     metrics: std::collections::HashMap::new(),
@@ -215,8 +216,8 @@ impl Gateway {
             self.security
                 .health_check()
                 .await
-                .unwrap_or_else(|_| mcp_common::ComponentHealth {
-                    status: mcp_common::HealthLevel::Critical,
+                .unwrap_or_else(|_| ComponentHealth {
+                    status: HealthLevel::Critical,
                     message: "Security health check failed".to_string(),
                     last_check: chrono::Utc::now(),
                     metrics: std::collections::HashMap::new(),
@@ -228,8 +229,8 @@ impl Gateway {
             self.telemetry
                 .health_check()
                 .await
-                .unwrap_or_else(|_| mcp_common::ComponentHealth {
-                    status: mcp_common::HealthLevel::Critical,
+                .unwrap_or_else(|_| ComponentHealth {
+                    status: HealthLevel::Critical,
                     message: "Telemetry health check failed".to_string(),
                     last_check: chrono::Utc::now(),
                     metrics: std::collections::HashMap::new(),
@@ -243,7 +244,7 @@ impl Gateway {
         {
             let mut state = self.state.write().await;
             state.last_health_check = chrono::Utc::now();
-            state.is_healthy = health_status.overall_health == mcp_common::HealthLevel::Healthy;
+            state.is_healthy = health_status.overall_health == HealthLevel::Healthy;
         }
 
         Ok(health_status)

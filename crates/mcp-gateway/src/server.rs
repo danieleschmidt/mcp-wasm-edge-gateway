@@ -56,8 +56,8 @@ impl Server {
             // MCP endpoints
             .route("/mcp/v1/request", post(handlers::mcp_request))
             .route("/mcp/v1/batch", post(handlers::mcp_batch_request))
-            // WebSocket endpoint
-            .route("/ws", get(handlers::websocket_handler))
+            // WebSocket endpoint (temporarily disabled in Generation 1)
+            // .route("/ws", get(handlers::websocket_handler))
             // API info
             .route("/", get(handlers::api_info))
             .route("/version", get(handlers::version_info))

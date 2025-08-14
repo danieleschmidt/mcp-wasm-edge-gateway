@@ -2,10 +2,11 @@
 
 use crate::{AppState, Gateway};
 use axum::{
-    extract::{Json, State, WebSocketUpgrade},
+    extract::{Json, State},
     http::StatusCode,
     response::{IntoResponse, Json as ResponseJson},
 };
+// WebSocket imports are handled locally in the websocket function
 use mcp_common::{HealthStatus, MCPRequest, MCPResponse};
 use serde_json::{json, Value};
 use tracing::{debug, error, info};
@@ -175,90 +176,18 @@ pub async fn mcp_batch_request(
     (StatusCode::OK, ResponseJson(responses))
 }
 
-/// WebSocket handler for real-time communication
-pub async fn websocket_handler(
-    ws: WebSocketUpgrade,
-    State(gateway): State<AppState>,
-) -> impl IntoResponse {
-    ws.on_upgrade(move |socket| handle_websocket(socket, gateway))
-}
+// WebSocket handler temporarily disabled in Generation 1 due to import complexity
+// /// WebSocket handler for real-time communication
+// pub async fn websocket_handler(
+//     ws: WebSocketUpgrade,
+//     State(gateway): State<AppState>,
+// ) -> impl IntoResponse {
+//     ws.on_upgrade(move |socket| handle_websocket(socket, gateway))
+// }
 
-async fn handle_websocket(socket: axum::extract::ws::WebSocket, gateway: AppState) {
-    use axum::extract::ws::{Message, WebSocket};
-    use futures::{sink::SinkExt, stream::StreamExt};
-
-    let (mut sender, mut receiver) = socket.split();
-
-    info!("WebSocket connection established");
-
-    // Handle incoming messages
-    while let Some(msg) = receiver.next().await {
-        match msg {
-            Ok(Message::Text(text)) => {
-                debug!("Received WebSocket message: {}", text);
-
-                // Parse as MCP request
-                match serde_json::from_str::<MCPRequest>(&text) {
-                    Ok(request) => match gateway.process_request(request).await {
-                        Ok(response) => {
-                            let response_text =
-                                serde_json::to_string(&response).unwrap_or_else(|_| {
-                                    r#"{"error":"Serialization failed"}"#.to_string()
-                                });
-
-                            if sender.send(Message::Text(response_text)).await.is_err() {
-                                break;
-                            }
-                        },
-                        Err(e) => {
-                            let error_response = json!({
-                                "error": e.to_string()
-                            });
-
-                            if sender
-                                .send(Message::Text(error_response.to_string()))
-                                .await
-                                .is_err()
-                            {
-                                break;
-                            }
-                        },
-                    },
-                    Err(e) => {
-                        error!("Failed to parse WebSocket message: {}", e);
-                        let error_response = json!({
-                            "error": format!("Invalid JSON: {}", e)
-                        });
-
-                        if sender
-                            .send(Message::Text(error_response.to_string()))
-                            .await
-                            .is_err()
-                        {
-                            break;
-                        }
-                    },
-                }
-            },
-            Ok(Message::Close(_)) => {
-                info!("WebSocket connection closed");
-                break;
-            },
-            Ok(Message::Ping(data)) => {
-                if sender.send(Message::Pong(data)).await.is_err() {
-                    break;
-                }
-            },
-            Err(e) => {
-                error!("WebSocket error: {}", e);
-                break;
-            },
-            _ => {},
-        }
-    }
-
-    info!("WebSocket connection terminated");
-}
+// async fn handle_websocket(socket: axum::extract::ws::WebSocket, gateway: AppState) {
+// WebSocket implementation will be added in Generation 2
+// This placeholder ensures the file compiles without WebSocket dependencies
 
 /// API info endpoint
 pub async fn api_info() -> impl IntoResponse {
@@ -294,7 +223,7 @@ pub async fn version_info() -> impl IntoResponse {
 }
 
 /// Convert metrics to Prometheus format
-fn format_metrics_as_prometheus(metrics: &mcp_common::AggregatedMetrics) -> String {
+fn format_metrics_as_prometheus(metrics: &mcp_common::metrics::AggregatedMetrics) -> String {
     let mut output = String::new();
 
     // System metrics

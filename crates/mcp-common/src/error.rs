@@ -41,6 +41,9 @@ pub enum Error {
     #[error("Serialization error: {0}")]
     Serialization(#[from] serde_json::Error),
 
+    #[error("Memory error: {0}")]
+    Memory(String),
+
     #[error("Generic error: {0}")]
     Generic(#[from] anyhow::Error),
 }
@@ -68,6 +71,7 @@ impl Error {
             Error::InvalidRequest(_) => "request",
             Error::Timeout(_) => "timeout",
             Error::Serialization(_) => "serialization",
+            Error::Memory(_) => "memory",
             Error::Generic(_) => "generic",
         }
     }
