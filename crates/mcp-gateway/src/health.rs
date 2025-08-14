@@ -1,7 +1,7 @@
 //! Health check utilities and implementations
 
 use chrono::Utc;
-use mcp_common::{ComponentHealth, HealthLevel, HealthStatus};
+use mcp_common::metrics::{ComponentHealth, HealthLevel, HealthStatus};
 use std::collections::HashMap;
 
 /// Perform a comprehensive health check
