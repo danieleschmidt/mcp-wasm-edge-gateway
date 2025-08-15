@@ -44,6 +44,9 @@ pub enum Error {
     #[error("Memory error: {0}")]
     Memory(String),
 
+    #[error("Internal error: {0}")]
+    Internal(String),
+
     #[error("Generic error: {0}")]
     Generic(#[from] anyhow::Error),
 }
@@ -72,6 +75,7 @@ impl Error {
             Error::Timeout(_) => "timeout",
             Error::Serialization(_) => "serialization",
             Error::Memory(_) => "memory",
+            Error::Internal(_) => "internal",
             Error::Generic(_) => "generic",
         }
     }

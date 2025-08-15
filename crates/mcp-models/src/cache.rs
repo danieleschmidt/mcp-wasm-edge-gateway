@@ -8,7 +8,6 @@ use tokio::sync::RwLock;
 use tracing::{debug, info, warn};
 use lru::LruCache;
 use std::num::NonZeroUsize;
-use chrono::Timelike;
 
 /// Advanced intelligent model cache with predictive capabilities
 pub struct ModelCache {

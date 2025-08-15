@@ -120,7 +120,7 @@ pub struct HealthStatus {
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 pub enum HealthLevel {
     Healthy,
-    Warning,
+    Degraded,
     Critical,
     Unknown,
 }
@@ -139,7 +139,7 @@ impl HealthLevel {
     pub fn as_score(&self) -> u8 {
         match self {
             HealthLevel::Healthy => 100,
-            HealthLevel::Warning => 50,
+            HealthLevel::Degraded => 50,
             HealthLevel::Critical => 10,
             HealthLevel::Unknown => 0,
         }
@@ -160,16 +160,16 @@ impl HealthStatus {
             .filter(|c| c.status == HealthLevel::Critical)
             .count();
 
-        let warning_count = self
+        let degraded_count = self
             .components
             .values()
-            .filter(|c| c.status == HealthLevel::Warning)
+            .filter(|c| c.status == HealthLevel::Degraded)
             .count();
 
         self.overall_health = if critical_count > 0 {
             HealthLevel::Critical
-        } else if warning_count > 0 {
-            HealthLevel::Warning
+        } else if degraded_count > 0 {
+            HealthLevel::Degraded
         } else {
             HealthLevel::Healthy
         };

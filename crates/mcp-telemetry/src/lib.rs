@@ -31,8 +31,8 @@ pub use standard_telemetry::StandardTelemetryCollector;
 
 /// Create a new telemetry collector instance
 pub async fn create_telemetry_collector(
-    config: Arc<Config>,
+    _config: Arc<Config>,
 ) -> Result<Arc<dyn TelemetryCollector + Send + Sync>> {
-    let collector = StandardTelemetryCollector::new(config).await?;
+    let collector = StandardTelemetryCollector::new();
     Ok(Arc::new(collector))
 }

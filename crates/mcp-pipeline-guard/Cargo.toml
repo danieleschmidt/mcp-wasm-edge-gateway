@@ -1,0 +1,30 @@
+[package]
+name = "mcp-pipeline-guard"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "Self-healing pipeline guard for MCP edge gateway"
+
+[dependencies]
+mcp-common = { path = "../mcp-common" }
+
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+parking_lot = { workspace = true }
+async-trait = { workspace = true }
+tracing = { workspace = true }
+
+# HTTP client for webhook alerts
+reqwest = { workspace = true }
+
+[dev-dependencies]
+tokio-test = "0.4"
+criterion = { version = "0.5", features = ["html_reports"] }
+
