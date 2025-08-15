@@ -7,6 +7,7 @@ members = [
     "crates/mcp-queue",
     "crates/mcp-security",
     "crates/mcp-telemetry",
+    "crates/mcp-pipeline-guard",
 ]
 
 [workspace.package]
@@ -94,6 +95,7 @@ path = "src/main.rs"
 [dependencies]
 mcp-common = { path = "crates/mcp-common" }
 mcp-gateway = { path = "crates/mcp-gateway" }
+mcp-pipeline-guard = { path = "crates/mcp-pipeline-guard" }
 
 tokio = { workspace = true }
 anyhow = { workspace = true }

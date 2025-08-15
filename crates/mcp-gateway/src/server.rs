@@ -44,33 +44,18 @@ impl Server {
     }
 
     fn create_app(&self) -> Router {
-        // Create the router with all routes
-        Router::new()
-            // Health endpoints
-            .route("/health", get(handlers::health_check))
-            .route("/health/ready", get(handlers::readiness_check))
-            .route("/health/live", get(handlers::liveness_check))
-            // Metrics endpoints
-            .route("/metrics", get(handlers::prometheus_metrics))
-            .route("/metrics/json", get(handlers::json_metrics))
-            // MCP endpoints
-            .route("/mcp/v1/request", post(handlers::mcp_request))
-            .route("/mcp/v1/batch", post(handlers::mcp_batch_request))
-            // WebSocket endpoint (temporarily disabled in Generation 1)
-            // .route("/ws", get(handlers::websocket_handler))
-            // API info
-            .route("/", get(handlers::api_info))
-            .route("/version", get(handlers::version_info))
-            // Add middleware stack
-            .layer(
-                ServiceBuilder::new()
-                    .layer(TraceLayer::new_for_http())
-                    .layer(CorsLayer::permissive()) // TODO: Configure CORS properly
-                    .layer(middleware::RequestIdLayer::new())
-                    .layer(middleware::RateLimitLayer::new(100, 60)) // 100 requests per minute
-                    .layer(middleware::MetricsLayer::new()),
-            )
-            .with_state(self.gateway.clone())
+        // Use the handlers module to create the complete router
+        let app = handlers::create_router(self.gateway.clone());
+        
+        // Add middleware stack
+        app.layer(
+            ServiceBuilder::new()
+                .layer(TraceLayer::new_for_http())
+                .layer(CorsLayer::permissive()) // TODO: Configure CORS properly
+                .layer(middleware::RequestIdLayer::new())
+                .layer(middleware::RateLimitLayer::new(100, 60)) // 100 requests per minute
+                .layer(middleware::MetricsLayer::new()),
+        )
     }
 }
 

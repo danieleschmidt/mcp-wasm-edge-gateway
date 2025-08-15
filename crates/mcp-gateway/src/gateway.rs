@@ -7,6 +7,7 @@ use mcp_queue::OfflineQueue;
 use mcp_router::Router;
 use mcp_security::SecurityManager;
 use mcp_telemetry::TelemetryCollector;
+use mcp_pipeline_guard::PipelineGuard;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use tracing::{debug, error, info};
@@ -20,6 +21,7 @@ pub struct Gateway {
     queue: Arc<dyn OfflineQueue + Send + Sync>,
     security: Arc<dyn SecurityManager + Send + Sync>,
     telemetry: Arc<dyn TelemetryCollector + Send + Sync>,
+    pipeline_guard: Arc<PipelineGuard>,
     state: Arc<RwLock<GatewayState>>,
 }
 
@@ -46,6 +48,7 @@ impl Gateway {
         let queue = mcp_queue::create_offline_queue(config.clone()).await?;
         let security = mcp_security::create_security_manager(config.clone()).await?;
         let telemetry = mcp_telemetry::create_telemetry_collector(config.clone()).await?;
+        let pipeline_guard = Arc::new(mcp_pipeline_guard::create_pipeline_guard((*config).clone()).await?);
 
         let state = Arc::new(RwLock::new(GatewayState {
             started_at: chrono::Utc::now(),
@@ -64,6 +67,7 @@ impl Gateway {
             queue,
             security,
             telemetry,
+            pipeline_guard,
             state,
         })
     }
@@ -237,6 +241,19 @@ impl Gateway {
                 }),
         );
 
+        health_status.components.insert(
+            "pipeline_guard".to_string(),
+            self.pipeline_guard
+                .get_health_status()
+                .await
+                .unwrap_or_else(|_| ComponentHealth {
+                    status: HealthLevel::Critical,
+                    message: "Pipeline guard health check failed".to_string(),
+                    last_check: chrono::Utc::now(),
+                    metrics: std::collections::HashMap::new(),
+                }),
+        );
+
         // Calculate overall health
         health_status.calculate_overall_health();
 
@@ -255,11 +272,20 @@ impl Gateway {
         self.telemetry.get_aggregated_metrics().await
     }
 
+    /// Get pipeline guard instance
+    pub fn pipeline_guard(&self) -> &PipelineGuard {
+        &self.pipeline_guard
+    }
+
     /// Shutdown the gateway gracefully
     pub async fn shutdown(&self) -> Result<()> {
         info!("Shutting down gateway");
 
         // Shutdown components in reverse order
+        if let Err(e) = self.pipeline_guard.shutdown().await {
+            error!("Error shutting down pipeline guard: {}", e);
+        }
+
         if let Err(e) = self.telemetry.shutdown().await {
             error!("Error shutting down telemetry: {}", e);
         }
