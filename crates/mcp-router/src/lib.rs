@@ -27,10 +27,12 @@ pub trait Router {
     async fn shutdown(&self) -> Result<()>;
 }
 
+mod advanced_load_balancer;
 mod cloud_client;
 mod intelligent_router;
 mod load_balancer;
 
+pub use advanced_load_balancer::{AdvancedLoadBalancer, LoadBalancerStats, EndpointStats};
 pub use intelligent_router::IntelligentRouter;
 
 /// Create a new router instance

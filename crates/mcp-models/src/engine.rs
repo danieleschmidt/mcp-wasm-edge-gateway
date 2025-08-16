@@ -713,14 +713,14 @@ impl ModelEngine for StandardModelEngine {
         {
             HealthLevel::Critical
         } else if memory_usage_percent > 85.0 {
-            HealthLevel::Warning
+            HealthLevel::Degraded
         } else {
             HealthLevel::Healthy
         };
 
         let message = match status {
             HealthLevel::Healthy => "Model engine is operating normally".to_string(),
-            HealthLevel::Warning => "Model engine memory usage is high".to_string(),
+            HealthLevel::Degraded => "Model engine memory usage is high".to_string(),
             HealthLevel::Critical => "Model engine is at capacity".to_string(),
             HealthLevel::Unknown => "Model engine status unknown".to_string(),
         };

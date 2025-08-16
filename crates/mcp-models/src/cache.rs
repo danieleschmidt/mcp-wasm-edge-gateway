@@ -233,7 +233,7 @@ impl ModelCache {
         candidates.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
 
         // Evict models until we have enough space
-        for (model_id, _score, size_mb) in candidates {
+        for (model_id, _score, _size_mb) in candidates {
             if evicted_total >= needed_mb {
                 break;
             }

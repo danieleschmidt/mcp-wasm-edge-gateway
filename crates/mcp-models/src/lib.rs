@@ -30,9 +30,13 @@ pub trait ModelEngine {
 
 mod cache;
 mod engine;
+mod intelligent_cache;
 mod loaders;
+mod performance_optimization;
 
 pub use engine::StandardModelEngine;
+pub use intelligent_cache::{IntelligentCache, CacheConfig, EvictionAlgorithm};
+pub use performance_optimization::{PerformanceProcessor, BenchmarkResults, MemoryPool, OptimizedMatrix};
 
 /// Create a new model engine instance
 pub async fn create_model_engine(

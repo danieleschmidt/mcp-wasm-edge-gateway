@@ -73,6 +73,7 @@ base64 = "0.22"
 
 # Additional utilities
 lru = "0.12"
+regex = "1.0"
 
 [package]
 name = "mcp-wasm-edge-gateway"
