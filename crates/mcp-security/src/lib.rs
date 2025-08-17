@@ -24,8 +24,10 @@ pub trait SecurityManager {
     async fn shutdown(&self) -> Result<()>;
 }
 
+mod input_validation;
 mod standard_security;
 
+pub use input_validation::{InputValidator, ValidationConfig, ContentSanitizer};
 pub use standard_security::StandardSecurityManager;
 
 /// Create a new security manager instance

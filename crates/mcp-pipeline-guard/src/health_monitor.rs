@@ -88,7 +88,7 @@ impl HealthMonitor {
 
         // Check metrics-based health
         let mut issues = Vec::new();
-        let mut max_severity = 0.0;
+        let mut max_severity: f32 = 0.0;
 
         // Error rate check
         if let Some(&error_rate) = metrics.get("error_rate") {

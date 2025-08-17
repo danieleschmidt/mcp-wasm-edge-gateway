@@ -24,7 +24,7 @@ pub enum RecoveryStrategy {
 }
 
 /// Recovery attempt result
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct RecoveryResult {
     pub success: bool,
     pub strategy_used: RecoveryStrategy,

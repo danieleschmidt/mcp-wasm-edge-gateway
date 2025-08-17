@@ -553,14 +553,14 @@ impl SecurityManager for StandardSecurityManager {
         let status = if success_rate < 50.0 {
             HealthLevel::Critical
         } else if success_rate < 80.0 || metrics.blocked_requests > 1000 {
-            HealthLevel::Warning
+            HealthLevel::Degraded
         } else {
             HealthLevel::Healthy
         };
         
         let message = match status {
             HealthLevel::Healthy => format!("Security manager healthy ({:.1}% success rate)", success_rate),
-            HealthLevel::Warning => format!("Security issues detected ({:.1}% success rate)", success_rate),
+            HealthLevel::Degraded => format!("Security issues detected ({:.1}% success rate)", success_rate),
             HealthLevel::Critical => format!("Critical security issues ({:.1}% success rate)", success_rate),
             HealthLevel::Unknown => format!("Security status unknown ({:.1}% success rate)", success_rate),
         };

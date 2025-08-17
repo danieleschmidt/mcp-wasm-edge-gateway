@@ -26,6 +26,14 @@ impl CloudClient {
         })
     }
 
+    pub async fn send_request(
+        &self,
+        endpoint: &str,
+        request: &MCPRequest,
+    ) -> Result<MCPResponse> {
+        self.forward_request(request, endpoint).await
+    }
+
     pub async fn forward_request(
         &self,
         request: &MCPRequest,

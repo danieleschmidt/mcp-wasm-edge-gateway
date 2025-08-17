@@ -1,8 +1,10 @@
 //! Load balancing utilities for distributing requests
 
 use mcp_common::config::{CloudEndpoint, LoadBalancingAlgorithm};
+use mcp_common::{Config, Result};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
 use tokio::sync::RwLock;
 
 /// Load balancer for distributing requests across multiple endpoints
@@ -23,7 +25,9 @@ struct EndpointHealth {
 }
 
 impl LoadBalancer {
-    pub fn new(algorithm: LoadBalancingAlgorithm, endpoints: Vec<CloudEndpoint>) -> Self {
+    pub fn new(config: Arc<Config>) -> Result<Self> {
+        let algorithm = config.router.load_balancing.algorithm.clone();
+        let endpoints = config.router.cloud_endpoints.clone();
         let endpoint_health = endpoints
             .iter()
             .map(|e| {
@@ -40,25 +44,25 @@ impl LoadBalancer {
             })
             .collect();
 
-        Self {
+        Ok(Self {
             algorithm,
             endpoints,
             round_robin_counter: AtomicUsize::new(0),
             endpoint_health: RwLock::new(endpoint_health),
-        }
+        })
     }
 
     /// Select the best endpoint for a request
-    pub async fn select_endpoint(&self) -> Option<&CloudEndpoint> {
+    pub async fn select_endpoint(&self) -> Result<&CloudEndpoint> {
         if self.endpoints.is_empty() {
-            return None;
+            return Err(mcp_common::Error::Routing("No endpoints configured".to_string()));
         }
 
         match self.algorithm {
             LoadBalancingAlgorithm::RoundRobin => {
                 let index =
                     self.round_robin_counter.fetch_add(1, Ordering::Relaxed) % self.endpoints.len();
-                Some(&self.endpoints[index])
+                Ok(&self.endpoints[index])
             },
 
             LoadBalancingAlgorithm::LeastConnections => {
@@ -77,7 +81,7 @@ impl LoadBalancer {
                     }
                 }
 
-                Some(best_endpoint)
+                Ok(best_endpoint)
             },
 
             LoadBalancingAlgorithm::WeightedRoundRobin => {
@@ -85,7 +89,7 @@ impl LoadBalancer {
                 // In a real implementation, you'd use endpoint weights
                 let index =
                     self.round_robin_counter.fetch_add(1, Ordering::Relaxed) % self.endpoints.len();
-                Some(&self.endpoints[index])
+                Ok(&self.endpoints[index])
             },
 
             LoadBalancingAlgorithm::HealthBased => {
@@ -109,6 +113,7 @@ impl LoadBalancer {
                 }
 
                 best_endpoint.or_else(|| self.endpoints.first())
+                    .ok_or_else(|| mcp_common::Error::Routing("No healthy endpoints available".to_string()))
             },
         }
     }

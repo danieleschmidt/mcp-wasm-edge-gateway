@@ -167,6 +167,7 @@ impl PipelineState {
             HealthLevel::Healthy => PipelineStatus::Healthy,
             HealthLevel::Degraded => PipelineStatus::Degraded,
             HealthLevel::Critical => PipelineStatus::Critical,
+            HealthLevel::Unknown => PipelineStatus::Critical, // Treat unknown as critical
         }
     }
 
