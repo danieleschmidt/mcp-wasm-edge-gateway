@@ -95,7 +95,7 @@ impl HealthMonitor {
             if error_rate > self.thresholds.max_error_rate {
                 let severity = (error_rate / self.thresholds.max_error_rate).min(1.0);
                 issues.push(format!("High error rate: {:.2}%", error_rate * 100.0));
-                max_severity = max_severity.max(severity);
+                max_severity = max_severity.max(severity as f32);
             }
         }
 
@@ -104,7 +104,7 @@ impl HealthMonitor {
             if response_time > self.thresholds.max_response_time_ms {
                 let severity = (response_time / self.thresholds.max_response_time_ms - 1.0).min(1.0);
                 issues.push(format!("High response time: {:.0}ms", response_time));
-                max_severity = max_severity.max(severity);
+                max_severity = max_severity.max(severity as f32);
             }
         }
 
@@ -113,7 +113,7 @@ impl HealthMonitor {
             if throughput < self.thresholds.min_throughput_rps {
                 let severity = (1.0 - throughput / self.thresholds.min_throughput_rps).min(1.0);
                 issues.push(format!("Low throughput: {:.2} rps", throughput));
-                max_severity = max_severity.max(severity);
+                max_severity = max_severity.max(severity as f32);
             }
         }
 
@@ -122,7 +122,7 @@ impl HealthMonitor {
             if memory_usage > self.thresholds.max_memory_usage_mb {
                 let severity = (memory_usage / self.thresholds.max_memory_usage_mb - 1.0).min(1.0);
                 issues.push(format!("High memory usage: {:.0}MB", memory_usage));
-                max_severity = max_severity.max(severity);
+                max_severity = max_severity.max(severity as f32);
             }
         }
 
@@ -131,7 +131,7 @@ impl HealthMonitor {
             if cpu_usage > self.thresholds.max_cpu_usage {
                 let severity = (cpu_usage / self.thresholds.max_cpu_usage - 1.0).min(1.0);
                 issues.push(format!("High CPU usage: {:.1}%", cpu_usage * 100.0));
-                max_severity = max_severity.max(severity);
+                max_severity = max_severity.max(severity as f32);
             }
         }
 
@@ -149,7 +149,7 @@ impl HealthMonitor {
                 } else {
                     issues.join("; ")
                 },
-                severity_score: max_severity,
+                severity_score: max_severity as f64,
             }
         }
     }
