@@ -434,7 +434,7 @@ impl AdvancedLoadBalancer {
 
         for endpoint in endpoints {
             let metrics = self.endpoint_metrics.clone();
-            let has_cb = self.circuit_breakers.read().await.contains_key(&endpoint.url);
+            let circuit_breakers = self.circuit_breakers.clone();
             
             tasks.push(tokio::spawn(async move {
                 let is_healthy = Self::check_endpoint_health(&endpoint).await;
@@ -446,7 +446,8 @@ impl AdvancedLoadBalancer {
                 }
 
                 // Update circuit breaker
-                if let Some(cb) = cb {
+                let cb_guard = circuit_breakers.read().await;
+                if let Some(cb) = cb_guard.get(&endpoint.url) {
                     if is_healthy {
                         // Reset circuit breaker if endpoint is healthy
                         cb.record_call_result(true).await;
@@ -474,15 +475,18 @@ impl AdvancedLoadBalancer {
 
     /// Check health of a single endpoint
     async fn check_endpoint_health(endpoint: &CloudEndpoint) -> bool {
+        let endpoint_url = endpoint.url.clone();
+        
         // Use retry logic for health checks
         let result = retry_operation(
-            &format!("health_check_{}", endpoint.url),
+            &format!("health_check_{}", endpoint_url),
             RetryStrategy::fixed_delay(Duration::from_millis(1000)),
-            || {
-                Box::pin(async {
+            move || {
+                let url = endpoint_url.clone();
+                Box::pin(async move {
                     // Simple TCP connection test or HTTP health endpoint
                     let client = reqwest::Client::new();
-                    let health_url = format!("{}/health", endpoint.url);
+                    let health_url = format!("{}/health", url);
                     
                     match tokio::time::timeout(
                         Duration::from_secs(5),

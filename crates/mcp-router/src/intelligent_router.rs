@@ -47,7 +47,7 @@ struct RoutingState {
 impl IntelligentRouter {
     pub async fn new(config: Arc<Config>) -> Result<Self> {
         let cloud_client = Arc::new(CloudClient::new(config.clone()).await?);
-        let load_balancer = Arc::new(LoadBalancer::new(config.clone()).await?);
+        let load_balancer = Arc::new(LoadBalancer::new(config.clone())?);
 
         Ok(Self {
             config,

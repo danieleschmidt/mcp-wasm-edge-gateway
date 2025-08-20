@@ -6,7 +6,7 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 use tokio::time::{Duration, interval};
 use tracing::{info, warn, error, debug};
-use parking_lot::Mutex;
+use tokio::sync::Mutex;
 use std::collections::HashMap;
 
 /// Main pipeline guard configuration
@@ -46,7 +46,7 @@ impl GuardConfig {
 /// Self-healing pipeline guard
 pub struct PipelineGuard {
     config: GuardConfig,
-    health_monitor: Arc<HealthMonitor>,
+    health_monitor: Arc<Mutex<HealthMonitor>>,
     recovery_engine: Arc<RecoveryEngine>,
     alert_manager: Arc<AlertManager>,
     pipeline_state: Arc<RwLock<PipelineState>>,
@@ -59,7 +59,7 @@ impl PipelineGuard {
     pub async fn new(config: GuardConfig) -> Result<Self> {
         info!("Initializing pipeline guard");
 
-        let health_monitor = Arc::new(HealthMonitor::new(config.health_thresholds.clone()));
+        let health_monitor = Arc::new(Mutex::new(HealthMonitor::new(config.health_thresholds.clone())));
         let recovery_engine = Arc::new(RecoveryEngine::new());
         let alert_manager = Arc::new(AlertManager::new());
         let pipeline_state = Arc::new(RwLock::new(PipelineState::new()));
@@ -116,6 +116,7 @@ impl PipelineGuard {
         
         self.registered_components
             .lock()
+            .await
             .insert(component_id.clone(), component);
 
         // Initialize component state
@@ -137,6 +138,7 @@ impl PipelineGuard {
                 HealthLevel::Healthy => "All pipeline components healthy".to_string(),
                 HealthLevel::Degraded => "Some pipeline components degraded".to_string(),
                 HealthLevel::Critical => "Critical pipeline failures detected".to_string(),
+                HealthLevel::Unknown => "Pipeline health status unknown".to_string(),
             },
             last_check: chrono::Utc::now(),
             metrics: self.get_pipeline_metrics().await,
@@ -144,22 +146,21 @@ impl PipelineGuard {
     }
 
     /// Get pipeline metrics
-    pub async fn get_pipeline_metrics(&self) -> HashMap<String, f64> {
+    pub async fn get_pipeline_metrics(&self) -> HashMap<String, f32> {
         let mut metrics = HashMap::new();
         
         let state = self.pipeline_state.read().await;
-        metrics.insert("total_components".to_string(), state.component_count() as f64);
-        metrics.insert("healthy_components".to_string(), state.healthy_component_count() as f64);
-        metrics.insert("failed_components".to_string(), state.failed_component_count() as f64);
-        metrics.insert("uptime_seconds".to_string(), state.uptime_seconds() as f64);
+        metrics.insert("total_components".to_string(), state.component_count() as f32);
+        metrics.insert("healthy_components".to_string(), state.healthy_component_count() as f32);
+        metrics.insert("failed_components".to_string(), state.failed_component_count() as f32);
+        metrics.insert("uptime_seconds".to_string(), state.uptime_seconds() as f32);
 
         // Add component-specific metrics
-        let components = self.registered_components.lock();
+        let components = self.registered_components.lock().await;
         for (component_id, component) in components.iter() {
-            if let Ok(component_metrics) = component.get_metrics().await {
-                for (key, value) in component_metrics {
-                    metrics.insert(format!("{}_{}", component_id, key), value);
-                }
+            let component_metrics = component.get_metrics().await;
+            for (key, value) in component_metrics {
+                metrics.insert(format!("{}_{}", component_id, key), value as f32);
             }
         }
 
@@ -184,7 +185,7 @@ impl PipelineGuard {
     pub async fn recover_component(&self, component_id: &str) -> Result<()> {
         info!("Manually triggering recovery for component: {}", component_id);
 
-        let components = self.registered_components.lock();
+        let components = self.registered_components.lock().await;
         if let Some(component) = components.get(component_id) {
             self.recovery_engine.recover_component(component.clone()).await
         } else {
@@ -194,7 +195,7 @@ impl PipelineGuard {
 
     /// Internal monitoring cycle
     async fn monitoring_cycle(
-        health_monitor: &HealthMonitor,
+        health_monitor: &Arc<Mutex<HealthMonitor>>,
         recovery_engine: &RecoveryEngine,
         alert_manager: &AlertManager,
         pipeline_state: &Arc<RwLock<PipelineState>>,
@@ -204,14 +205,14 @@ impl PipelineGuard {
         debug!("Starting monitoring cycle");
 
         let components = {
-            let lock = registered_components.lock();
+            let lock = registered_components.lock().await;
             lock.clone()
         };
 
         for (component_id, component) in components {
             // Check component health
             let is_healthy = component.is_healthy().await;
-            let metrics = component.get_metrics().await.unwrap_or_default();
+            let metrics = component.get_metrics().await;
 
             // Update pipeline state
             {
@@ -221,7 +222,10 @@ impl PipelineGuard {
             }
 
             // Analyze health and trigger alerts/recovery if needed
-            let health_assessment = health_monitor.assess_component_health(&component_id, is_healthy, &metrics).await;
+            let health_assessment = {
+                let mut monitor = health_monitor.lock().await;
+                monitor.assess_component_health(&component_id, is_healthy, &metrics).await
+            };
             
             if !health_assessment.is_healthy {
                 warn!("Component {} is unhealthy: {}", component_id, health_assessment.reason);

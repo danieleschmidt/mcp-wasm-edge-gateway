@@ -81,7 +81,7 @@ impl PersistentQueue {
                         continue;
                     }
 
-                    match bincode::deserialize::<QueuedRequest>(&value) {
+                    match serde_json::from_slice::<QueuedRequest>(&value) {
                         Ok(queued_request) => {
                             // Check if request has expired
                             if let Some(expires_at) = queued_request.expires_at {
@@ -186,7 +186,7 @@ impl PersistentQueue {
     /// Persist a request to storage
     async fn persist_request(&self, queued_request: &QueuedRequest) -> Result<()> {
         let key = format!("request:{}", queued_request.id);
-        let value = bincode::serialize(queued_request)
+        let value = serde_json::to_vec(queued_request)
             .map_err(|e| Error::Queue(format!("Failed to serialize request: {}", e)))?;
 
         self.storage

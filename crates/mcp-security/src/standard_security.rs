@@ -477,7 +477,7 @@ impl SecurityManager for StandardSecurityManager {
         };
         
         // Serialize to bytes
-        let serialized = bincode::serialize(&encrypted_data)
+        let serialized = serde_json::to_vec(&encrypted_data)
             .map_err(|e| Error::Security(format!("Failed to serialize encrypted data: {}", e)))?;
         
         // Update metrics
@@ -494,7 +494,7 @@ impl SecurityManager for StandardSecurityManager {
         debug!("Decrypting {} bytes of data", encrypted_data.len());
         
         // Deserialize encrypted data
-        let encrypted: EncryptedData = bincode::deserialize(encrypted_data)
+        let encrypted: EncryptedData = serde_json::from_slice(encrypted_data)
             .map_err(|e| Error::Security(format!("Failed to deserialize encrypted data: {}", e)))?;
         
         let nonce = Nonce::assume_unique_for_key(encrypted.nonce);
