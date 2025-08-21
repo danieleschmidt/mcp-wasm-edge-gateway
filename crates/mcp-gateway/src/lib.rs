@@ -3,10 +3,12 @@
 //! This crate provides the main gateway functionality including request handling,
 //! component orchestration, and the REST/WebSocket APIs.
 
+pub mod circuit_breaker;
 pub mod gateway;
 pub mod handlers;
 pub mod health;
 pub mod middleware;
+pub mod performance;
 pub mod server;
 
 pub use gateway::Gateway;

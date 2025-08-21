@@ -50,14 +50,14 @@ async fn check_system_health() -> ComponentHealth {
     let status = if memory_info.usage_percent > 90.0 || cpu_usage > 95.0 {
         HealthLevel::Critical
     } else if memory_info.usage_percent > 80.0 || cpu_usage > 85.0 {
-        HealthLevel::Warning
+        HealthLevel::Degraded
     } else {
         HealthLevel::Healthy
     };
 
     let message = match status {
         HealthLevel::Healthy => "System resources are healthy".to_string(),
-        HealthLevel::Warning => "System resources are under pressure".to_string(),
+        HealthLevel::Degraded => "System resources are under pressure".to_string(),
         HealthLevel::Critical => "System resources are critically low".to_string(),
         HealthLevel::Unknown => "System health unknown".to_string(),
     };
@@ -83,7 +83,7 @@ async fn check_network_health() -> ComponentHealth {
     let status = if is_connected {
         HealthLevel::Healthy
     } else {
-        HealthLevel::Warning
+        HealthLevel::Degraded
     };
 
     let message = if is_connected {
@@ -113,14 +113,14 @@ async fn check_storage_health() -> ComponentHealth {
     let status = if storage_info.usage_percent > 95.0 {
         HealthLevel::Critical
     } else if storage_info.usage_percent > 85.0 {
-        HealthLevel::Warning
+        HealthLevel::Degraded
     } else {
         HealthLevel::Healthy
     };
 
     let message = match status {
         HealthLevel::Healthy => "Storage is healthy".to_string(),
-        HealthLevel::Warning => "Storage usage is high".to_string(),
+        HealthLevel::Degraded => "Storage usage is high".to_string(),
         HealthLevel::Critical => "Storage is critically full".to_string(),
         HealthLevel::Unknown => "Storage health unknown".to_string(),
     };
@@ -273,7 +273,7 @@ async fn test_network_connectivity() -> bool {
         )
         .await;
 
-        result.is_ok() && result.unwrap().is_ok()
+        matches!(result, Ok(Ok(_)))
     }
 
     #[cfg(target_arch = "wasm32")]
