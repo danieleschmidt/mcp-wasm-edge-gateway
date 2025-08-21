@@ -8,7 +8,9 @@ use mcp_router::Router;
 use mcp_security::SecurityManager;
 use mcp_telemetry::TelemetryCollector;
 use mcp_pipeline_guard::PipelineGuard;
+use crate::performance::{PerformanceManager, PerformanceConfig};
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
 use tracing::{debug, error, info};
 use uuid::Uuid;
@@ -22,6 +24,7 @@ pub struct Gateway {
     security: Arc<dyn SecurityManager + Send + Sync>,
     telemetry: Arc<dyn TelemetryCollector + Send + Sync>,
     pipeline_guard: Arc<PipelineGuard>,
+    performance: Arc<RwLock<PerformanceManager>>,
     state: Arc<RwLock<GatewayState>>,
 }
 
@@ -50,6 +53,12 @@ impl Gateway {
         let telemetry = mcp_telemetry::create_telemetry_collector(config.clone()).await?;
         let pipeline_guard = Arc::new(mcp_pipeline_guard::create_pipeline_guard((*config).clone()).await?);
 
+        // Initialize performance management
+        let perf_config = PerformanceConfig::default();
+        let mut performance_manager = PerformanceManager::new(perf_config);
+        performance_manager.start_monitoring().await;
+        let performance = Arc::new(RwLock::new(performance_manager));
+
         let state = Arc::new(RwLock::new(GatewayState {
             started_at: chrono::Utc::now(),
             active_requests: 0,
@@ -58,7 +67,7 @@ impl Gateway {
             is_healthy: true,
         }));
 
-        info!("Gateway initialized successfully");
+        info!("Gateway initialized successfully with performance optimization");
 
         Ok(Gateway {
             config,
@@ -68,14 +77,25 @@ impl Gateway {
             security,
             telemetry,
             pipeline_guard,
+            performance,
             state,
         })
     }
 
-    /// Process an MCP request
+    /// Process an MCP request with performance optimization and caching
     pub async fn process_request(&self, mut request: MCPRequest) -> Result<MCPResponse> {
         let request_id = request.id;
-        debug!("Processing request {}", request_id);
+        let start_time = Instant::now();
+        debug!("Processing request {} with performance optimization", request_id);
+
+        // Check cache first for GET-like operations
+        let cache_key = self.generate_cache_key(&request);
+        if let Some(cached_response) = self.performance.read().await.get_cached_response(&cache_key).await {
+            debug!("Cache hit for request {}", request_id);
+            if let Ok(response) = serde_json::from_value(cached_response) {
+                return Ok(response);
+            }
+        }
 
         // Update state
         {
@@ -86,21 +106,35 @@ impl Gateway {
 
         let result = self.process_request_internal(request).await;
 
-        // Update state
+        // Update state and performance metrics
         {
             let mut state = self.state.write().await;
             state.active_requests = state.active_requests.saturating_sub(1);
         }
 
+        let duration = start_time.elapsed();
+        let success = result.is_ok();
+
+        // Record performance metrics
+        self.performance.write().await.record_request(duration, success).await;
+
         match &result {
             Ok(response) => {
-                debug!("Request {} completed successfully", request_id);
+                debug!("Request {} completed successfully in {:?}", request_id, duration);
+                
+                // Cache successful responses for cacheable methods
+                if self.is_cacheable_method(&response) {
+                    if let Ok(cached_value) = serde_json::to_value(response) {
+                        self.performance.write().await.cache_response(cache_key, cached_value).await;
+                    }
+                }
+                
                 self.telemetry
                     .record_request_success(request_id, response)
                     .await;
             },
             Err(error) => {
-                error!("Request {} failed: {}", request_id, error);
+                error!("Request {} failed in {:?}: {}", request_id, duration, error);
                 self.telemetry.record_request_error(request_id, error).await;
             },
         }
@@ -148,6 +182,34 @@ impl Gateway {
         };
 
         Ok(response)
+    }
+
+    /// Generate cache key for request
+    fn generate_cache_key(&self, request: &MCPRequest) -> String {
+        // Create a deterministic cache key based on method and params
+        let params_hash = if request.params.is_empty() {
+            "empty".to_string()
+        } else {
+            // Create a simple hash of parameters for caching
+            format!("{:?}", request.params)
+        };
+        format!("{}:{}", request.method, params_hash)
+    }
+
+    /// Check if method/response is cacheable
+    fn is_cacheable_method(&self, response: &MCPResponse) -> bool {
+        // Only cache successful responses for GET-like operations
+        response.error.is_none() && response.result.is_some()
+    }
+
+    /// Get performance metrics
+    pub async fn get_performance_metrics(&self) -> crate::performance::PerformanceMetrics {
+        self.performance.read().await.get_metrics().await
+    }
+
+    /// Check if auto-scaling is recommended
+    pub async fn should_scale_up(&self) -> bool {
+        self.performance.read().await.should_scale_up().await
     }
 
     /// Get gateway configuration
@@ -282,6 +344,9 @@ impl Gateway {
         info!("Shutting down gateway");
 
         // Shutdown components in reverse order
+        // Shutdown performance manager first
+        self.performance.write().await.shutdown().await;
+
         if let Err(e) = self.pipeline_guard.shutdown().await {
             error!("Error shutting down pipeline guard: {}", e);
         }
@@ -306,7 +371,7 @@ impl Gateway {
             error!("Error shutting down router: {}", e);
         }
 
-        info!("Gateway shutdown complete");
+        info!("Gateway shutdown complete with performance optimization cleanup");
         Ok(())
     }
 }

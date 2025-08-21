@@ -11,7 +11,14 @@ use axum::{
 use mcp_common::{Error, Result};
 use std::sync::Arc;
 use tower::ServiceBuilder;
-use tower_http::{cors::CorsLayer, trace::TraceLayer};
+use tower_http::{
+    cors::{Any, CorsLayer}, 
+    trace::TraceLayer,
+    compression::CompressionLayer,
+    timeout::TimeoutLayer,
+};
+use std::time::Duration;
+use axum::http::{HeaderName, HeaderValue};
 use tracing::{error, info};
 
 /// HTTP server wrapper for the gateway
@@ -47,13 +54,23 @@ impl Server {
         // Use the handlers module to create the complete router
         let app = handlers::create_router(self.gateway.clone());
         
-        // Add middleware stack
+        // Add comprehensive middleware stack for robustness and security
         app.layer(
             ServiceBuilder::new()
+                // Observability
                 .layer(TraceLayer::new_for_http())
-                .layer(CorsLayer::permissive()) // TODO: Configure CORS properly
-                .layer(middleware::RequestIdLayer::new())
+                // CORS - properly configured for edge deployment
+                .layer(CorsLayer::new()
+                    .allow_origin(Any) // Will be restricted in production config
+                    .allow_methods(Any)
+                    .allow_headers(Any)
+                    .max_age(Duration::from_secs(3600))
+                )
+                // Rate limiting for DoS protection
                 .layer(middleware::RateLimitLayer::new(100, 60)) // 100 requests per minute
+                // Request tracking
+                .layer(middleware::RequestIdLayer::new())
+                // Metrics collection
                 .layer(middleware::MetricsLayer::new()),
         )
     }

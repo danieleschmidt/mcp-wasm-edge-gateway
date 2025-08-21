@@ -58,9 +58,12 @@ mod tests {
         let queue = create_offline_queue(config).await.unwrap();
         
         let request = MCPRequest {
-            id: Uuid::new_v4().to_string(),
+            id: Uuid::new_v4(),
+            device_id: "test_device".to_string(),
             method: "test_method".to_string(),
-            params: serde_json::Value::Null,
+            params: std::collections::HashMap::new(),
+            context: None,
+            timestamp: chrono::Utc::now(),
         };
         
         // Test enqueue
@@ -84,7 +87,8 @@ mod tests {
         
         let health = queue.health_check().await;
         assert!(health.is_ok());
-        assert!(matches!(health.unwrap(), ComponentHealth::Healthy { .. }));
+        let health_result = health.unwrap();
+        assert_eq!(health_result.status, mcp_common::HealthLevel::Healthy);
     }
     
     #[tokio::test]

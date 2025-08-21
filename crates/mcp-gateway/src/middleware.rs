@@ -57,16 +57,27 @@ where
 
     fn call(&mut self, mut request: Request) -> Self::Future {
         let request_id = Uuid::new_v4().to_string();
-        request
-            .headers_mut()
-            .insert("x-request-id", HeaderValue::from_str(&request_id).unwrap());
+        
+        // Safely add request ID header
+        if let Ok(header_value) = HeaderValue::from_str(&request_id) {
+            request.headers_mut().insert("x-request-id", header_value);
+        } else {
+            warn!("Failed to create header value for request ID: {}", request_id);
+        }
 
         let future = self.inner.call(request);
+        let request_id_clone = request_id.clone();
+        
         Box::pin(async move {
             let mut response = future.await?;
-            response
-                .headers_mut()
-                .insert("x-request-id", HeaderValue::from_str(&request_id).unwrap());
+            
+            // Safely add response ID header
+            if let Ok(header_value) = HeaderValue::from_str(&request_id_clone) {
+                response.headers_mut().insert("x-request-id", header_value);
+            } else {
+                warn!("Failed to create response header value for request ID: {}", request_id_clone);
+            }
+            
             Ok(response)
         })
     }
