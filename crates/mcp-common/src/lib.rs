@@ -3,11 +3,15 @@
 //! This crate provides shared types, traits, and utilities used across
 //! all components of the MCP Edge Gateway system.
 
+pub mod autonomous_deployment;
+pub mod autonomous_scaling;
 pub mod circuit_breaker;
 pub mod config;
 pub mod error;
 pub mod metrics;
+pub mod observability;
 pub mod retry;
+pub mod self_healing;
 pub mod types;
 pub mod utils;
 
