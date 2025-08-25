@@ -271,6 +271,109 @@ impl PersistentQueue {
 
         Ok(removed_count)
     }
+    
+    /// Sync a single request to the cloud with retry logic and exponential backoff
+    async fn sync_request_to_cloud(&self, queued_request: &QueuedRequest) -> Result<MCPResponse> {
+        let cloud_endpoint = self.config.router.cloud_fallback_endpoint.as_ref()
+            .ok_or_else(|| Error::Queue("No cloud endpoint configured".to_string()))?;
+            
+        // Create HTTP client with timeout
+        let client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_millis(self.config.queue.sync_timeout_ms))
+            .build()
+            .map_err(|e| Error::Queue(format!("Failed to create HTTP client: {}", e)))?;
+            
+        // Calculate exponential backoff delay based on retry count
+        let backoff_ms = std::cmp::min(
+            1000 * (2_u64.pow(queued_request.retry_count.min(10))), // Cap at 2^10 seconds
+            30000 // Max 30 seconds
+        );
+        
+        if queued_request.retry_count > 0 {
+            debug!("Applying backoff delay of {}ms for retry {}", backoff_ms, queued_request.retry_count);
+            tokio::time::sleep(std::time::Duration::from_millis(backoff_ms)).await;
+        }
+        
+        // Prepare the request payload
+        let mut request_data = serde_json::to_value(&queued_request.request)
+            .map_err(|e| Error::Queue(format!("Failed to serialize request: {}", e)))?;
+            
+        // Add queue metadata
+        if let Some(obj) = request_data.as_object_mut() {
+            obj.insert("_queue_metadata".to_string(), serde_json::json!({
+                "queued_at": queued_request.queued_at,
+                "retry_count": queued_request.retry_count,
+                "priority_score": queued_request.priority_score,
+                "sync_attempt": chrono::Utc::now()
+            }));
+        }
+        
+        // Send request to cloud
+        let response = client
+            .post(cloud_endpoint)
+            .header("Content-Type", "application/json")
+            .header("User-Agent", format!("mcp-edge-gateway/{}", env!("CARGO_PKG_VERSION")))
+            .json(&request_data)
+            .send()
+            .await
+            .map_err(|e| Error::Queue(format!("Failed to send request to cloud: {}", e)))?;
+            
+        if !response.status().is_success() {
+            let status = response.status();
+            let error_body = response.text().await.unwrap_or_default();
+            return Err(Error::Queue(format!(
+                "Cloud sync failed with status {}: {}", 
+                status, 
+                error_body
+            )));
+        }
+        
+        // Parse response
+        let cloud_response: MCPResponse = response
+            .json()
+            .await
+            .map_err(|e| Error::Queue(format!("Failed to parse cloud response: {}", e)))?;
+            
+        debug!("Cloud sync successful for request {}", queued_request.request.id);
+        Ok(cloud_response)
+    }
+    
+    /// Store cloud response for later retrieval
+    async fn store_response(&self, request_id: &Uuid, response: &MCPResponse) -> Result<()> {
+        let key = format!("response:{}", request_id);
+        let response_data = bincode::encode_to_vec(response, bincode::config::standard())
+            .map_err(|e| Error::Queue(format!("Failed to serialize response: {}", e)))?;
+            
+        self.storage
+            .insert(key.as_bytes(), response_data)
+            .map_err(|e| Error::Queue(format!("Failed to store response: {}", e)))?;
+            
+        debug!("Stored cloud response for request {}", request_id);
+        Ok(())
+    }
+    
+    /// Retrieve stored response for a request
+    pub async fn get_stored_response(&self, request_id: &Uuid) -> Result<Option<MCPResponse>> {
+        let key = format!("response:{}", request_id);
+        
+        match self.storage.get(key.as_bytes()) {
+            Ok(Some(data)) => {
+                match bincode::decode_from_slice(&data, bincode::config::standard()) {
+                    Ok((response, _)) => Ok(Some(response)),
+                    Err(e) => {
+                        warn!("Failed to deserialize stored response: {}", e);
+                        // Clean up corrupted response
+                        if let Err(e) = self.storage.remove(key.as_bytes()) {
+                            warn!("Failed to remove corrupted response: {}", e);
+                        }
+                        Ok(None)
+                    }
+                }
+            },
+            Ok(None) => Ok(None),
+            Err(e) => Err(Error::Queue(format!("Failed to retrieve stored response: {}", e)))
+        }
+    }
 }
 
 #[async_trait]
@@ -397,20 +500,60 @@ impl OfflineQueue for PersistentQueue {
         }
 
         let mut sync_count = 0;
+        let mut failed_syncs = Vec::new();
+        
         for queued_request in requests_to_sync {
-            // TODO: Implement actual cloud sync
-            // For now, just simulate sync attempt
             debug!("Syncing request: {}", queued_request.request.id);
-            sync_count += 1;
-
-            // Remove successfully synced request
-            {
-                let mut memory_queue = self.memory_queue.write().await;
-                memory_queue.retain(|req| req.id != queued_request.id);
-            }
-
-            if let Err(e) = self.remove_from_storage(&queued_request.id).await {
-                warn!("Failed to remove synced request from storage: {}", e);
+            
+            // Implement actual cloud sync with retry logic
+            match self.sync_request_to_cloud(&queued_request).await {
+                Ok(response) => {
+                    sync_count += 1;
+                    info!("Successfully synced request {} to cloud", queued_request.request.id);
+                    
+                    // Store response for later retrieval if needed
+                    if let Err(e) = self.store_response(&queued_request.request.id, &response).await {
+                        warn!("Failed to store cloud response for request {}: {}", queued_request.request.id, e);
+                    }
+                    
+                    // Remove successfully synced request from queue
+                    {
+                        let mut memory_queue = self.memory_queue.write().await;
+                        memory_queue.retain(|req| req.id != queued_request.id);
+                    }
+                    
+                    // Remove from storage
+                    if let Err(e) = self.remove_from_storage(&queued_request.id).await {
+                        warn!("Failed to remove synced request from storage: {}", e);
+                    }
+                },
+                Err(e) => {
+                    warn!("Failed to sync request {} to cloud: {}", queued_request.request.id, e);
+                    failed_syncs.push(queued_request.id);
+                    
+                    // Increment retry count
+                    let mut memory_queue = self.memory_queue.write().await;
+                    if let Some(req) = memory_queue.iter_mut().find(|r| r.id == queued_request.id) {
+                        req.retry_count += 1;
+                        
+                        // Remove requests that have exceeded max retries
+                        if req.retry_count > self.config.queue.max_retries {
+                            warn!("Request {} exceeded max retries, removing from queue", req.request.id);
+                            if let Err(e) = self.remove_from_storage(&req.id).await {
+                                warn!("Failed to remove failed request from storage: {}", e);
+                            }
+                        }
+                    }
+                    
+                    // Filter out failed requests that exceeded max retries
+                    memory_queue.retain(|req| {
+                        if failed_syncs.contains(&req.id) && req.retry_count > self.config.queue.max_retries {
+                            false
+                        } else {
+                            true
+                        }
+                    });
+                }
             }
         }
 

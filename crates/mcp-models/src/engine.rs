@@ -337,21 +337,68 @@ impl StandardModelEngine {
 
     /// Execute request with a single model
     async fn execute_single_model(&self, request: &MCPRequest, model_id: &ModelId) -> Result<MCPResponse> {
-        // This would call the actual model execution logic
-        // For now, return a placeholder implementation
         debug!("Executing request with model: {}", model_id);
         
-        // TODO: Implement actual model execution
+        let start_time = std::time::Instant::now();
+        
+        // Execute actual inference through the model engine
+        let inference_result = self.execute_inference(request, model_id).await?;
+        
+        let execution_time = start_time.elapsed().as_millis() as u64;
+        
+        // Enhance the response with execution metadata
+        let mut enhanced_result = inference_result;
+        if let Some(obj) = enhanced_result.as_object_mut() {
+            obj.insert("execution_time_ms".to_string(), serde_json::Value::Number(
+                serde_json::Number::from(execution_time)
+            ));
+            obj.insert("model_used".to_string(), serde_json::Value::String(model_id.clone()));
+            
+            // Add confidence scoring based on response characteristics
+            let confidence = self.calculate_response_confidence(&enhanced_result, execution_time);
+            obj.insert("confidence".to_string(), serde_json::Value::Number(
+                serde_json::Number::from_f64(confidence as f64).unwrap_or(serde_json::Number::from(0.5))
+            ));
+        }
+        
         Ok(MCPResponse {
             id: request.id.clone(),
-            result: Some(serde_json::json!({
-                "content": format!("Response from model {}", model_id),
-                "model_used": model_id,
-                "confidence": 0.85
-            })),
+            result: Some(enhanced_result),
             error: None,
             timestamp: chrono::Utc::now(),
         })
+    }
+    
+    /// Calculate confidence score based on response characteristics and performance
+    fn calculate_response_confidence(&self, result: &serde_json::Value, execution_time_ms: u64) -> f32 {
+        let mut confidence = 0.7; // Base confidence
+        
+        // Adjust based on execution time (faster usually indicates more confident models)
+        if execution_time_ms < 100 {
+            confidence += 0.1;
+        } else if execution_time_ms > 5000 {
+            confidence -= 0.1;
+        }
+        
+        // Check result quality indicators
+        if let Some(obj) = result.as_object() {
+            // If result has content, boost confidence
+            if obj.contains_key("content") || obj.contains_key("response") || obj.contains_key("text") {
+                confidence += 0.1;
+            }
+            
+            // If result has structured data, boost confidence
+            if obj.len() > 2 {
+                confidence += 0.05;
+            }
+            
+            // Check for existing confidence score
+            if let Some(existing_conf) = obj.get("confidence").and_then(|v| v.as_f64()) {
+                return (existing_conf as f32).clamp(0.0, 1.0);
+            }
+        }
+        
+        confidence.clamp(0.0, 1.0)
     }
 
     /// Estimate response confidence using heuristics
