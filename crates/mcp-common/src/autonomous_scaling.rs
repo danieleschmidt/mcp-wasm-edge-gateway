@@ -9,7 +9,7 @@ use std::{
     time::{Duration, SystemTime},
 };
 use serde::{Deserialize, Serialize};
-use tokio::sync::{broadcast, mpsc, RwLock as TokioRwLock};
+use tokio::sync::broadcast;
 use uuid::Uuid;
 
 /// Autonomous scaling orchestrator with ML-powered predictions
@@ -160,6 +160,57 @@ pub trait ScalingStrategyExecutor: Send + Sync {
     fn execute(&self, decision: &ScalingDecision, context: &ScalingContext) -> crate::Result<ScalingExecutionResult>;
     fn validate(&self, decision: &ScalingDecision, context: &ScalingContext) -> crate::Result<ValidationResult>;
     fn estimate_impact(&self, decision: &ScalingDecision, context: &ScalingContext) -> ScalingImpactEstimate;
+}
+
+// Placeholder strategy for compilation
+pub struct DefaultScalingStrategy;
+
+impl ScalingStrategyExecutor for DefaultScalingStrategy {
+    fn execute(&self, _decision: &ScalingDecision, _context: &ScalingContext) -> crate::Result<ScalingExecutionResult> {
+        // Simplified implementation for compilation
+        Err(crate::Error::Generic("Not implemented".to_string()))
+    }
+    
+    fn validate(&self, _decision: &ScalingDecision, _context: &ScalingContext) -> crate::Result<ValidationResult> {
+        // Simplified implementation for compilation
+        Err(crate::Error::Generic("Not implemented".to_string()))
+    }
+    
+    fn estimate_impact(&self, _decision: &ScalingDecision, _context: &ScalingContext) -> ScalingImpactEstimate {
+        // Simplified implementation for compilation
+        ScalingImpactEstimate {
+            resource_impact: ResourceImpactEstimate {
+                cpu_utilization_change: 0.0,
+                memory_utilization_change: 0.0,
+                network_utilization_change: 0.0,
+                storage_utilization_change: 0.0,
+            },
+            performance_impact: PerformanceImpactEstimate {
+                expected_throughput_change: 0.0,
+                expected_latency_change: 0.0,
+                expected_availability_change: 0.0,
+                confidence_interval: (0.0, 1.0),
+            },
+            cost_impact: CostImpactEstimate {
+                immediate_cost_change: 0.0,
+                monthly_cost_change: 0.0,
+                operational_cost_change: 0.0,
+                total_cost_of_ownership_change: 0.0,
+            },
+            risk_impact: RiskImpactEstimate {
+                security_risk_change: 0.0,
+                operational_risk_change: 0.0,
+                financial_risk_change: 0.0,
+                compliance_risk_change: 0.0,
+            },
+            time_impact: TimeImpactEstimate {
+                deployment_time: Duration::from_secs(0),
+                time_to_benefit: Duration::from_secs(0),
+                stabilization_time: Duration::from_secs(0),
+                total_impact_time: Duration::from_secs(0),
+            },
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -539,7 +590,7 @@ pub struct ImpactAssessment {
     pub recovery_time_estimate: Duration,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct PerformanceImpact {
     pub latency_change_ms: f64,
     pub throughput_change_percentage: f64,
@@ -547,7 +598,7 @@ pub struct PerformanceImpact {
     pub resource_utilization_change: ResourceUtilizationChange,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ResourceUtilizationChange {
     pub cpu_change_percentage: f64,
     pub memory_change_percentage: f64,
@@ -555,7 +606,7 @@ pub struct ResourceUtilizationChange {
     pub storage_change_percentage: f64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct CostImpact {
     pub hourly_cost_change: f64,
     pub monthly_cost_change: f64,
@@ -605,7 +656,7 @@ pub enum ValidationWarningType {
     LowConfidencePrediction,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct RiskAssessment {
     pub overall_risk_level: RiskLevel,
     pub specific_risks: Vec<ScalingRisk>,
@@ -613,8 +664,9 @@ pub struct RiskAssessment {
     pub monitoring_plan: MonitoringPlan,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub enum RiskLevel {
+    #[default]
     VeryLow,
     Low,
     Medium,
@@ -622,7 +674,7 @@ pub enum RiskLevel {
     VeryHigh,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct MitigationPlan {
     pub strategies: Vec<MitigationStrategy>,
     pub contingency_plans: Vec<ContingencyPlan>,
@@ -662,7 +714,7 @@ pub struct RollbackTrigger {
     pub automatic_rollback: bool,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct MonitoringPlan {
     pub key_metrics: Vec<String>,
     pub monitoring_frequency: Duration,
@@ -670,7 +722,7 @@ pub struct MonitoringPlan {
     pub escalation_policy: EscalationPolicy,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct EscalationPolicy {
     pub levels: Vec<EscalationLevel>,
     pub timeout_per_level: Duration,
@@ -703,7 +755,7 @@ pub struct ScalingImpactEstimate {
     pub time_impact: TimeImpactEstimate,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ResourceImpactEstimate {
     pub cpu_utilization_change: f64,
     pub memory_utilization_change: f64,
@@ -711,7 +763,7 @@ pub struct ResourceImpactEstimate {
     pub storage_utilization_change: f64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct PerformanceImpactEstimate {
     pub expected_throughput_change: f64,
     pub expected_latency_change: f64,
@@ -719,7 +771,7 @@ pub struct PerformanceImpactEstimate {
     pub confidence_interval: (f64, f64),
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct CostImpactEstimate {
     pub immediate_cost_change: f64,
     pub monthly_cost_change: f64,
@@ -727,7 +779,7 @@ pub struct CostImpactEstimate {
     pub total_cost_of_ownership_change: f64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct RiskImpactEstimate {
     pub security_risk_change: f64,
     pub operational_risk_change: f64,
@@ -735,7 +787,7 @@ pub struct RiskImpactEstimate {
     pub compliance_risk_change: f64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct TimeImpactEstimate {
     pub deployment_time: Duration,
     pub time_to_benefit: Duration,
@@ -833,7 +885,7 @@ pub enum ConstraintType {
 pub enum ConstraintEnforcement {
     Hard, // Must be satisfied
     Soft, // Should be satisfied if possible
-    Best_Effort, // Consider but don't block
+    BestEffort, // Consider but don't block
 }
 
 #[derive(Debug, Clone)]
@@ -903,8 +955,8 @@ pub enum PoolHealthStatus {
 
 pub struct ConstraintManager {
     constraints: Arc<RwLock<Vec<GlobalConstraint>>>,
-    constraint_evaluator: Arc<ConstraintEvaluator>,
-    violation_handler: Arc<ViolationHandler>,
+    constraint_evaluator: Arc<dyn ConstraintEvaluator>,
+    violation_handler: Arc<dyn ViolationHandler>,
 }
 
 #[derive(Debug, Clone)]
@@ -1629,9 +1681,9 @@ impl AutonomousScalingOrchestrator {
             },
             availability_requirements: AvailabilityRequirements {
                 target_availability: 0.995,
-                max_downtime_per_month: Duration::from_minutes(30),
-                recovery_time_objective: Duration::from_minutes(5),
-                recovery_point_objective: Duration::from_minutes(1),
+                max_downtime_per_month: Duration::from_secs(1800),
+                recovery_time_objective: Duration::from_secs(300),
+                recovery_point_objective: Duration::from_secs(60),
             },
             compliance_constraints: Vec::new(),
             geographic_constraints: GeographicConstraints {
@@ -1665,7 +1717,7 @@ impl AutonomousScalingOrchestrator {
         }
     }
 
-    fn determine_trigger_reason(decision: &ScalingDecision) -> ScalingTriggerReason {
+    fn determine_trigger_reason(_decision: &ScalingDecision) -> ScalingTriggerReason {
         // This would be determined based on the decision context
         ScalingTriggerReason::PredictiveLoad
     }
@@ -1744,7 +1796,7 @@ impl ScalingEngine {
     pub async fn validate_decision(&self, decision: &ScalingDecision, context: &ScalingContext) -> crate::Result<ValidationResult> {
         // Basic validation logic
         let mut violations = Vec::new();
-        let mut warnings = Vec::new();
+        let warnings = Vec::new();
         
         // Check resource constraints
         if decision.target_configuration.cpu_cores > context.constraints.max_cpu_cores {
@@ -1787,7 +1839,7 @@ impl ScalingEngine {
                     ]),
                     escalation_policy: EscalationPolicy {
                         levels: Vec::new(),
-                        timeout_per_level: Duration::from_minutes(5),
+                        timeout_per_level: Duration::from_secs(300),
                         max_escalations: 3,
                     },
                 },
@@ -1987,7 +2039,7 @@ impl ScalingExecutionEngine {
         }
     }
 
-    pub async fn execute(&self, decision: &ScalingDecision, context: &ScalingContext) -> crate::Result<ScalingExecutionResult> {
+    pub async fn execute(&self, decision: &ScalingDecision, _context: &ScalingContext) -> crate::Result<ScalingExecutionResult> {
         tracing::info!("Executing scaling decision: {}", decision.decision_id);
         
         // Simulate scaling execution

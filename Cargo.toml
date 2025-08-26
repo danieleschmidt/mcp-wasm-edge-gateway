@@ -93,6 +93,10 @@ categories.workspace = true
 name = "mcp-gateway"
 path = "src/main.rs"
 
+[[bin]]
+name = "simple-gen1-demo"
+path = "simple_gen1_demo.rs"
+
 [dependencies]
 mcp-common = { path = "crates/mcp-common" }
 mcp-gateway = { path = "crates/mcp-gateway" }

@@ -34,6 +34,9 @@ pub enum Error {
 
     #[error("Invalid request: {0}")]
     InvalidRequest(String),
+    
+    #[error("Validation error: {0}")]
+    Validation(String),
 
     #[error("Timeout: {0}")]
     Timeout(String),
@@ -72,6 +75,7 @@ impl Error {
             Error::Telemetry(_) => "telemetry",
             Error::ResourceExhausted(_) => "resource",
             Error::InvalidRequest(_) => "request",
+            Error::Validation(_) => "validation",
             Error::Timeout(_) => "timeout",
             Error::Serialization(_) => "serialization",
             Error::Memory(_) => "memory",
@@ -95,6 +99,7 @@ impl Error {
             Error::Telemetry(_) => 1,
             Error::Memory(_) => 4,
             Error::InvalidRequest(_) => 2,
+            Error::Validation(_) => 2,
             Error::Serialization(_) => 2,
             Error::Generic(_) => 3,
         }
@@ -141,6 +146,7 @@ impl Error {
             Error::Telemetry(msg) => Error::Telemetry(format!("{}: {}", context, msg)),
             Error::ResourceExhausted(msg) => Error::ResourceExhausted(format!("{}: {}", context, msg)),
             Error::InvalidRequest(msg) => Error::InvalidRequest(format!("{}: {}", context, msg)),
+            Error::Validation(msg) => Error::Validation(format!("{}: {}", context, msg)),
             Error::Timeout(msg) => Error::Timeout(format!("{}: {}", context, msg)),
             Error::Memory(msg) => Error::Memory(format!("{}: {}", context, msg)),
             Error::Internal(msg) => Error::Internal(format!("{}: {}", context, msg)),
@@ -211,6 +217,7 @@ impl Clone for Error {
             Error::Telemetry(s) => Error::Telemetry(s.clone()),
             Error::ResourceExhausted(s) => Error::ResourceExhausted(s.clone()),
             Error::InvalidRequest(s) => Error::InvalidRequest(s.clone()),
+            Error::Validation(s) => Error::Validation(s.clone()),
             Error::Timeout(s) => Error::Timeout(s.clone()),
             Error::Serialization(s) => Error::Serialization(s.clone()),
             Error::Memory(s) => Error::Memory(s.clone()),
