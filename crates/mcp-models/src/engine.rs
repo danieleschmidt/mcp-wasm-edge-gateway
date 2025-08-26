@@ -357,7 +357,7 @@ impl StandardModelEngine {
             // Add confidence scoring based on response characteristics
             let confidence = self.calculate_response_confidence(&enhanced_result, execution_time);
             obj.insert("confidence".to_string(), serde_json::Value::Number(
-                serde_json::Number::from_f64(confidence as f64).unwrap_or(serde_json::Number::from(0.5))
+                serde_json::Number::from_f64(confidence as f64).unwrap_or(serde_json::Number::from(0i32))
             ));
         }
         
@@ -371,7 +371,7 @@ impl StandardModelEngine {
     
     /// Calculate confidence score based on response characteristics and performance
     fn calculate_response_confidence(&self, result: &serde_json::Value, execution_time_ms: u64) -> f32 {
-        let mut confidence = 0.7; // Base confidence
+        let mut confidence: f32 = 0.7; // Base confidence
         
         // Adjust based on execution time (faster usually indicates more confident models)
         if execution_time_ms < 100 {

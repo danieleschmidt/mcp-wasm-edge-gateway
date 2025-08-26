@@ -9,7 +9,7 @@ use std::{
     time::{Duration, SystemTime},
 };
 use serde::{Deserialize, Serialize};
-use tokio::sync::{broadcast, mpsc, RwLock as TokioRwLock};
+use tokio::sync::broadcast;
 use uuid::Uuid;
 
 /// Autonomous deployment orchestrator with intelligent release management
@@ -885,10 +885,10 @@ pub struct KeyManagementConfig {
 #[derive(Debug, Clone)]
 pub enum KeyProvider {
     Internal,
-    AWS_KMS,
-    Azure_KeyVault,
-    Google_KMS,
-    HashiCorp_Vault,
+    AwsKms,
+    AzureKeyVault,
+    GoogleKms,
+    HashiCorpVault,
 }
 
 #[derive(Debug, Clone)]
@@ -1003,7 +1003,7 @@ pub enum ComplianceFramework {
     ISO27001,
     GDPR,
     HIPAA,
-    PCI_DSS,
+    PciDss,
     FedRAMP,
 }
 
